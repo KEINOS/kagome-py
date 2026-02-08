@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(head:*)",
+      "Bash(make:*)",
+      "Bash(make build:*)",
+      "Bash(go version:*)",
+      "Bash(go env:*)",
+      "Bash(cc:*)",
+      "Bash(ld:*)",
+      "Bash(sw_vers:*)",
+      "Bash(go test:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

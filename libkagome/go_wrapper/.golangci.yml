@@ -1,0 +1,25 @@
+version: "2"
+
+run:
+  tests: true
+  allow-parallel-runners: true
+
+linters:
+  default: all
+  exclusions:
+    paths:
+      - .github
+  settings:
+    depguard:
+      rules:
+        main:
+          allow:
+            - $gostd
+            - github.com/ikawaha/kagome/v2
+            - github.com/ikawaha/kagome-dict
+            - github.com/stretchr/testify
+  disable:
+    # Disabled due to wsl_v5
+    - wsl
+    # Disabled due to testing private function purpose
+    - testpackage
