@@ -72,9 +72,13 @@ jobs:
           CGO_ENABLED: "1"
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+        shell: bash
         run: |
+          mkdir -p ../build
           go test -v ./...
           go build -buildmode=c-archive -o ../build/libkagome.a ./main.go
+          echo "=== Build output ==="
+          ls -la ../build/
 
       - name: Build shared library
         working-directory: _src_c
