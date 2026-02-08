@@ -92,10 +92,18 @@ jobs:
           fi
 
       - name: Stage library into package
+        shell: bash
         run: |
           mkdir -p src/libkagome/lib
-          cp _src_c/build/libkagome.${{ matrix.lib_ext }} \
-             src/libkagome/lib/libkagome.${{ matrix.lib_ext }}
+          if [ -d "_src_c/build" ]; then
+            ls -la _src_c/build/
+            cp "_src_c/build/libkagome.${{ matrix.lib_ext }}" \
+               "src/libkagome/lib/libkagome.${{ matrix.lib_ext }}"
+            ls -la src/libkagome/lib/
+          else
+            echo "ERROR: _src_c/build/ directory not found"
+            exit 1
+          fi
 
       - name: Build wheel
         run: python3 -m pip wheel . --no-deps --wheel-dir ./dist/
