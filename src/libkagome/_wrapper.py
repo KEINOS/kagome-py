@@ -43,9 +43,9 @@ def _shared_library_name() -> str:
 
 def _shared_library_path() -> Path:
     """
-    Find the shared library.
+    Find the shared library bundled with this package.
 
-    Looks for <project_root>/bin/libkagome.(so|dll|dylib)
+    Looks for <package_dir>/lib/libkagome.(so|dll|dylib)
 
     Returns:
         Absolute path to the library
@@ -53,12 +53,13 @@ def _shared_library_path() -> Path:
     Raises:
         FileNotFoundError: If library not found
     """
-    base = Path(__file__).resolve().parent.parent
-    path = (
-        base / "bin" / _shared_library_name()
-    )  # like filepath.Join(base, "bin", libname)
+    pkg_dir = Path(__file__).resolve().parent
+    path = pkg_dir / "lib" / _shared_library_name()
     if not path.exists():
-        raise FileNotFoundError(f"Shared library not found: {path}")
+        raise FileNotFoundError(
+            f"Shared library not found: {path}\n"
+            f"Please install from a pre-built wheel: pip install kagome-py"
+        )
     return path
 
 

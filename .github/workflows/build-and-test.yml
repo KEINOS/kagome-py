@@ -1,0 +1,134 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS arm64 (native on M1/M2 runners)
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            lib_ext: dylib
+            wheel_plat: macosx_11_0_arm64
+
+          # macOS x86_64 (Intel)
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+            lib_ext: dylib
+            wheel_plat: macosx_10_13_x86_64
+
+          # Linux x86_64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            lib_ext: so
+            wheel_plat: manylinux_2_17_x86_64
+
+          # Linux arm64 (GitHub has native arm64 runners)
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            lib_ext: so
+            wheel_plat: manylinux_2_17_aarch64
+
+          # Windows x86_64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            lib_ext: dll
+            wheel_plat: win_amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: _src_c/go/go.mod
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python build tools
+        run: pip install setuptools wheel build
+
+      - name: Build Go c-archive
+        working-directory: _src_c/go
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go test -v ./...
+          go build -buildmode=c-archive -o ../build/libkagome.a ./main.go
+
+      - name: Build shared library
+        working-directory: _src_c
+        shell: bash
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            gcc -fPIC -fvisibility=hidden -shared \
+              ./c/kagome_wrapper.c ./build/libkagome.a \
+              -o ./build/libkagome.${{ matrix.lib_ext }} \
+              -lwinmm -lws2_32 -lntdll
+          else
+            cc -fPIC -fvisibility=hidden -shared \
+              ./c/kagome_wrapper.c ./build/libkagome.a \
+              -o ./build/libkagome.${{ matrix.lib_ext }}
+          fi
+
+      - name: Stage library into package
+        run: |
+          mkdir -p src/libkagome/lib
+          cp _src_c/build/libkagome.${{ matrix.lib_ext }} \
+             src/libkagome/lib/libkagome.${{ matrix.lib_ext }}
+
+      - name: Build wheel
+        run: python3 -m pip wheel . --no-deps --wheel-dir ./dist/
+
+      - name: Re-tag wheel with correct platform
+        run: |
+          pip install wheel
+          python3 -m wheel tags --platform-tag ${{ matrix.wheel_plat }} dist/*.whl --remove
+
+      - name: Verify wheel contents
+        run: unzip -l dist/*.whl
+
+      - name: Install wheel and test
+        run: |
+          python3 -m venv /tmp/test-venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            /tmp/test-venv/Scripts/pip install dist/*.whl
+            /tmp/test-venv/Scripts/python tests/libkagome_test.py
+          else
+            source /tmp/test-venv/bin/activate
+            pip install dist/*.whl
+            python3 tests/libkagome_test.py
+            deactivate
+          fi
+
+      - name: Verify manylinux compliance (Linux only)
+        if: matrix.goos == 'linux'
+        run: |
+          pip install auditwheel
+          auditwheel show dist/*.whl
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.whl

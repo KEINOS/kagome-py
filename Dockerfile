@@ -6,7 +6,7 @@ FROM golang:latest AS build_base
 
 RUN apt update && apt upgrade -y
 
-WORKDIR /app/libkagome/go_wrapper
+WORKDIR /app/_src_c/go
 
 # We do not `COPY` the local `go.mod` and `go.sum` here because
 RUN \

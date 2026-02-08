@@ -1,0 +1,154 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Needed for trusted publishing (OIDC)
+permissions:
+  id-token: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # macOS arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            lib_ext: dylib
+            wheel_plat: macosx_11_0_arm64
+
+          # macOS x86_64
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+            lib_ext: dylib
+            wheel_plat: macosx_10_13_x86_64
+
+          # Linux x86_64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            lib_ext: so
+            wheel_plat: manylinux_2_17_x86_64
+
+          # Linux arm64
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            lib_ext: so
+            wheel_plat: manylinux_2_17_aarch64
+
+          # Windows x86_64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            lib_ext: dll
+            wheel_plat: win_amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: _src_c/go/go.mod
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python build tools
+        run: pip install setuptools wheel build
+
+      - name: Build Go c-archive
+        working-directory: _src_c/go
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -buildmode=c-archive -o ../build/libkagome.a ./main.go
+
+      - name: Build shared library
+        working-directory: _src_c
+        shell: bash
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            gcc -fPIC -fvisibility=hidden -shared \
+              ./c/kagome_wrapper.c ./build/libkagome.a \
+              -o ./build/libkagome.${{ matrix.lib_ext }} \
+              -lwinmm -lws2_32 -lntdll
+          else
+            cc -fPIC -fvisibility=hidden -shared \
+              ./c/kagome_wrapper.c ./build/libkagome.a \
+              -o ./build/libkagome.${{ matrix.lib_ext }}
+          fi
+
+      - name: Stage library into package
+        run: |
+          mkdir -p src/libkagome/lib
+          cp _src_c/build/libkagome.${{ matrix.lib_ext }} \
+             src/libkagome/lib/libkagome.${{ matrix.lib_ext }}
+
+      - name: Build wheel
+        run: python3 -m pip wheel . --no-deps --wheel-dir ./dist/
+
+      - name: Re-tag wheel with correct platform
+        run: |
+          pip install wheel
+          python3 -m wheel tags --platform-tag ${{ matrix.wheel_plat }} dist/*.whl --remove
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.whl
+
+  build-sdist:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python build tools
+        run: pip install build
+
+      - name: Build sdist
+        run: python3 -m build --sdist --outdir ./dist/
+
+      - name: Upload sdist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    needs: [build, build-sdist]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/kagome-py
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

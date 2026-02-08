@@ -1,24 +1,25 @@
 volumes:
-  kagome-dist:
+  kagome-build:
 
 services:
   build-kagome:
     build:
       context: .
     volumes:
-      - kagome-dist:/app/libkagome/bin
+      - kagome-build:/app/_src_c/build
       - ./Makefile:/app/Makefile:ro
-      - ./libkagome/go_wrapper:/app/libkagome/go_wrapper:ro
-      - ./libkagome/c_wrapper:/app/libkagome/c_wrapper:ro
+      - ./_src_c/go:/app/_src_c/go:ro
+      - ./_src_c/c:/app/_src_c/c:ro
+      - ./src/libkagome:/app/src/libkagome
     working_dir: /app
     entrypoint: ["make", "build"]
 
   test-python:
     image: python:latest
     volumes:
-      - kagome-dist:/app/libkagome/bin:ro
       - ./Makefile:/app/Makefile:ro
-      - ./libkagome/python_wrapper:/app/libkagome/python_wrapper:ro
+      - ./src/libkagome:/app/src/libkagome:ro
+      - ./tests:/app/tests:ro
     working_dir: /app
     entrypoint: ["make", "test-python"]
     depends_on:

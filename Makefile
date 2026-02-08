@@ -13,31 +13,46 @@ else
     $(error Unsupported GOOS: $(GOOS))
 endif
 
-.PHONY: clean build-archive build-shared build test-go test-python test clean
+.PHONY: clean build-archive build-shared stage-lib build test-go test-python test wheel sdist
+.PHONY: docker-pull docker-clean docker-build docker-test
+
+# ---------------------------------------------------------------------------
+# Clean
+# ---------------------------------------------------------------------------
 
 clean:
-	@rm -rf ./libkagome/bin
+	@rm -rf ./_src_c/build/libkagome*
+	@rm -f ./src/libkagome/lib/libkagome.*
+	@rm -rf ./build ./dist ./*.egg-info ./src/*.egg-info
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
 
 build-archive:
-	@mkdir -p ./libkagome/bin
-	@rm -rf ./libkagome/bin/lib*
-	@cd ./libkagome/go_wrapper && \
+	@mkdir -p ./_src_c/build
+	@rm -rf ./_src_c/build/lib*
+	@cd ./_src_c/go && \
 	go clean -testcache && go test -race -v ./... && \
-	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -buildmode=c-archive -o ../bin/libkagome.a ./main.go
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -buildmode=c-archive -o ../build/libkagome.a ./main.go
 
 build-shared: build-archive
-	@cd ./libkagome && \
+	@cd ./_src_c && \
 	cc -fPIC \
 		-fvisibility=hidden \
 		-shared \
-		./c_wrapper/kagome_wrapper.c ./bin/libkagome.a \
-		-o ./bin/libkagome.$(LIB_EXT)
+		./c/kagome_wrapper.c ./build/libkagome.a \
+		-o ./build/libkagome.$(LIB_EXT)
 
-build: build-shared
-	@mkdir -p ./libkagome/dist
-	@rm -rf ./libkagome/dist/libkagome*
-	@cp ./libkagome/bin/libkagome.$(LIB_EXT) ./libkagome/dist/libkagome.$(LIB_EXT)
-	@cp ./libkagome/python_wrapper/libkagome.py ./libkagome/dist/libkagome.py
+stage-lib:
+	@mkdir -p ./src/libkagome/lib
+	@cp ./_src_c/build/libkagome.$(LIB_EXT) ./src/libkagome/lib/libkagome.$(LIB_EXT)
+
+build: build-shared stage-lib
+
+# ---------------------------------------------------------------------------
+# Test
+# ---------------------------------------------------------------------------
 
 test-go:
 	@if ! command -v go >/dev/null 2>&1; then \
@@ -45,7 +60,7 @@ test-go:
 		exit 0; \
 	fi; \
 	echo "**NOTE**: On macOS, 'ld: warning: ...' can be ignored if tests pass."; \
-	cd ./libkagome/go_wrapper && \
+	cd ./_src_c/go && \
 	go clean -testcache && go test -race ./...
 
 test-python:
@@ -53,16 +68,27 @@ test-python:
 		echo "[SKIP] Python3 is not installed."; \
 		exit 0; \
 	fi; \
-	if [ -f ./libkagome/bin/libkagome.so ] || [ -f ./libkagome/bin/libkagome.dll ] || [ -f ./libkagome/bin/libkagome.dylib ]; then \
-		PYTHONPATH=./libkagome/python_wrapper python3 ./tests/libkagome_test.py ; \
+	if [ -f ./src/libkagome/lib/libkagome.so ] || [ -f ./src/libkagome/lib/libkagome.dll ] || [ -f ./src/libkagome/lib/libkagome.dylib ]; then \
+		PYTHONPATH=./src python3 ./tests/libkagome_test.py ; \
 	else \
-		echo "No libkagome.(so|dll|dylib) found. Please run make build first." ; exit 1 ; \
+		echo "No libkagome.(so|dll|dylib) found in src/libkagome/lib/. Please run 'make build' first." ; exit 1 ; \
 	fi
 
 test: test-go test-python
 
+# ---------------------------------------------------------------------------
+# Python packaging
+# ---------------------------------------------------------------------------
 
-.PHONY: docker-pull docker-clean docker-build docker-test
+wheel: stage-lib
+	python3 -m pip wheel . --no-deps --wheel-dir ./dist/
+
+sdist:
+	python3 -m build --sdist --outdir ./dist/
+
+# ---------------------------------------------------------------------------
+# Docker
+# ---------------------------------------------------------------------------
 
 docker-pull:
 	# Pull latest base images for stability

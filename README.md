@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
 ## Supported OS and Architectures
 
-- Python: 3.8+
+- Python: 3.10+
 - OS:
   - macOS (x86_64, Arm64)
   - Linux (x86_64, Arm64) + `glibc` (`manylinux`. No support for `musl`)

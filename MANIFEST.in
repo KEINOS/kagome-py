@@ -1,0 +1,31 @@
+# Source distribution manifest for kagome-py
+#
+# Includes Go/C source so users can build from source with:
+#   pip install kagome-py --no-binary :all:
+
+# Packaging and build files
+include LICENSE
+include README.md
+include Makefile
+include pyproject.toml
+include setup.py
+
+# Go source (FFI bridge)
+recursive-include _src_c/go *.go go.mod go.sum
+
+# C source (stable public API wrapper)
+recursive-include _src_c/c *.c *.h
+
+# Python package source
+recursive-include src/libkagome *.py
+include src/libkagome/lib/.gitkeep
+
+# Exclude build artifacts and pre-built shared libraries
+prune _src_c/build
+global-exclude __pycache__
+global-exclude *.pyc
+global-exclude .DS_Store
+global-exclude *.so
+global-exclude *.dylib
+global-exclude *.dll
+global-exclude *.a

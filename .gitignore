@@ -1,2 +1,20 @@
-libkagome/bin/
+# Build artifacts
+_src_c/build/*
+!_src_c/build/.gitkeep
+
+# Shared libraries in package (built by CI/make, not committed)
+src/libkagome/lib/libkagome.*
+!src/libkagome/lib/.gitkeep
+
+# Python
 __pycache__/
+*.pyc
+*.egg-info/
+*.egg
+*.whl
+*.tar.gz
+build/
+dist/
+
+# OS
+.DS_Store

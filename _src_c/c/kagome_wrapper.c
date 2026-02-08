@@ -5,7 +5,7 @@
  * Built with -fvisibility=hidden so only kagome_* functions are visible.
  */
 
-#include "../bin/libkagome.h"
+#include "../build/libkagome.h"
 #include "kagome_wrapper.h"
 
 __attribute__((visibility("default")))
