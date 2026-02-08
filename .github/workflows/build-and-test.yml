@@ -110,17 +110,26 @@ jobs:
           fi
 
       - name: Build wheel
-        run: python3 -m pip wheel . --no-deps --wheel-dir ./dist/
+        run: |
+          python3 -m pip wheel . --no-deps --wheel-dir ./dist/
+          echo "=== Initial wheel ==="
+          ls -la dist/
 
       - name: Re-tag wheel with correct platform
         run: |
           pip install wheel
           python3 -m wheel tags --platform-tag ${{ matrix.wheel_plat }} dist/*.whl --remove
+          echo "=== Re-tagged wheel ==="
+          ls -la dist/
 
       - name: Verify wheel contents
-        run: unzip -l dist/*.whl
+        shell: bash
+        run: |
+          echo "=== Wheel contents ==="
+          unzip -l dist/*.whl | head -20
 
       - name: Install wheel and test
+        shell: bash
         run: |
           python3 -m venv /tmp/test-venv
           if [ "$RUNNER_OS" = "Windows" ]; then
@@ -128,18 +137,16 @@ jobs:
             /tmp/test-venv/Scripts/python tests/libkagome_test.py
           else
             source /tmp/test-venv/bin/activate
-            pip install dist/*.whl
+            pip install dist/*.whl 2>&1 | tail -3
             python3 tests/libkagome_test.py
             deactivate
           fi
 
       - name: Verify manylinux compliance (Linux only)
-        if: matrix.goos == 'linux'
-        continue-on-error: true
+        if: runner.os == 'Linux'
         run: |
           pip install auditwheel
-          ls -la dist/
-          auditwheel show dist/*.whl || echo "auditwheel check completed (warnings OK)"
+          auditwheel show dist/*.whl
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
