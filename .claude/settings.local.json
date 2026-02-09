@@ -22,7 +22,10 @@
       "Bash(gh run view:*)",
       "Bash(gh api:*)",
       "Bash(python3:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(for f in CI_CD_FIXES.md IMPLEMENTATION_SUMMARY.md todo.md)",
+      "Bash(done)"
     ]
   }
 }

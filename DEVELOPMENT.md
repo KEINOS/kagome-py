@@ -1,10 +1,10 @@
-# Quick Start: kagome-py pip Distribution
+# Development Guide: kagome-py
 
-## For Users
+## Installation
 
-### Install from PyPI (Recommended)
+### For Users
 
-Once published to PyPI:
+Install from PyPI:
 
 ```bash
 pip install kagome-py
@@ -34,8 +34,6 @@ for token in tokens:
 words = kagome.wakati("すもももももももものうち")
 print(words)  # ['すもも', 'も', 'もも', 'も', 'もも', 'の', 'うち']
 ```
-
----
 
 ## For Developers
 
