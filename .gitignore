@@ -6,6 +6,9 @@ _src_c/build/*
 src/libkagome/lib/libkagome.*
 !src/libkagome/lib/.gitkeep
 
+# Go
+coverage.out
+
 # Python
 __pycache__/
 *.pyc
