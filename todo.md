@@ -4,12 +4,12 @@ Issues and improvements found during code review (2026-02-09).
 
 ## Priority Summary for v2.10.3 Initial Release
 
-### MUST FIX BEFORE RELEASE (1 remaining item)
+### MUST FIX BEFORE RELEASE - ALL COMPLETE! ✓
 
 1. ~~Fix `macos-12` → `macos-15-intel` in publish.yml (#1)~~ [DONE - c9ea815]
 2. ~~Single-source version (remove duplication #2)~~ [DONE - 1ddddf4]
 3. ~~Add `__eq__` / `__repr__` to Token (#3)~~ [DONE - 5b3e347]
-4. Add Go tests to publish.yml (#4)
+4. ~~Add Go tests to publish.yml (#4)~~ [DONE - 1ef083f]
 5. ~~Fix Windows Arm64 claim in README (#18)~~ [DONE - f338df5]
 
 ### SHOULD CONSIDER (5 items)
