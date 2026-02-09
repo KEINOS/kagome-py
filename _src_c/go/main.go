@@ -1,5 +1,8 @@
 // Package main provides C FFI bindings for Kagome, a Japanese morphological analyzer.
 // It exports a C API for initializing, tokenizing, and managing Kagome instances.
+//
+// ⚠️  IMPORTANT: DO NOT add test functions (test* or TEST*) to this file.
+// Test functions must go in main_test.go or internal/cgotest/helpers.go.
 package main
 
 /*
@@ -165,9 +168,9 @@ func KagomeDestroy(handle unsafe.Pointer) {
 
 // tokenStrings holds all C strings for a single token.
 type tokenStrings struct {
-	surface, pos1, pos2, pos3, pos4           *C.char
-	conjType, conjForm, baseForm, reading     *C.char
-	pronunciation                             *C.char
+	surface, pos1, pos2, pos3, pos4       *C.char
+	conjType, conjForm, baseForm, reading *C.char
+	pronunciation                         *C.char
 }
 
 // allocateTokenStrings allocates C strings for a single token.
@@ -378,54 +381,6 @@ func EchoFree(p *C.char) {
 	if p != nil {
 		C.free(unsafe.Pointer(p))
 	}
-}
-
-// ------------------------------------------------------------------
-// Test Helpers (in main.go due to Go cgo limitation)
-// ------------------------------------------------------------------
-//
-// NOTE: These functions are exclusively for testing and are placed in main.go
-// because Go does not support cgo imports in *_test.go files. Even though they
-// are helper functions, they cannot be moved to a separate test file without
-// breaking the cgo preamble requirement.
-//
-// These functions are only called from main_test.go and have no impact on
-// the production FFI API.
-
-// testTokenizeString is a test helper that tokenizes a Go string.
-// It handles the C string conversion internally and returns the token count.
-// This is only used by tests and is not part of the public API.
-func testTokenizeString(handle unsafe.Pointer, text string) int {
-	if handle == nil || text == "" {
-		return 0
-	}
-
-	cStr := C.CString(text)
-	defer C.free(unsafe.Pointer(cStr))
-
-	arr := KagomeTokenizeStruct(handle, cStr)
-	if arr == nil {
-		return 0
-	}
-
-	count := int(arr.length)
-	KagomeFreeTokenArray(arr)
-
-	return count
-}
-
-// testHandleExists checks if a handle is still in the instances map.
-// This is only used by tests and is not part of the public API.
-func testHandleExists(handle unsafe.Pointer) bool {
-	if handle == nil {
-		return false
-	}
-
-	instanceMutex.Lock()
-	_, exists := instances[handle]
-	instanceMutex.Unlock()
-
-	return exists
 }
 
 func main() {}

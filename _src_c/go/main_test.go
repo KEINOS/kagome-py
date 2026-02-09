@@ -8,8 +8,19 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/KEINOS/kagome-py/libkagome/internal/cgotest"
 	"github.com/stretchr/testify/require"
 )
+
+// testTokenizeString wraps cgotest.TokenizeString for convenient test access.
+func testTokenizeString(handle unsafe.Pointer, text string) int {
+	return cgotest.TokenizeString(handle, text)
+}
+
+// testHandleExists wraps cgotest.HandleExists for convenient test access.
+func testHandleExists(handle unsafe.Pointer) bool {
+	return cgotest.HandleExists(handle)
+}
 
 // TestWouldOverflowTokenAllocation tests the overflow detection logic.
 func TestWouldOverflowTokenAllocation(t *testing.T) {
@@ -280,7 +291,6 @@ func TestInstanceMapThreadSafety(t *testing.T) {
 
 // TestG1_EmptyStringInput tests tokenization of empty string.
 func TestG1_EmptyStringInput(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -292,7 +302,6 @@ func TestG1_EmptyStringInput(t *testing.T) {
 
 // TestG1_SingleCharacter tests tokenization of single ASCII character.
 func TestG1_SingleCharacter(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -303,17 +312,18 @@ func TestG1_SingleCharacter(t *testing.T) {
 
 // TestG1_VeryLongString tests tokenization of 100KB+ text.
 func TestG1_VeryLongString(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
 	// Create 100KB+ test string by repeating text.
 	longText := ""
+
 	var longTextSb319 strings.Builder
-	for i := 0; i < 5000; i++ {
+	for range 5000 {
 		longTextSb319.WriteString("これはテストです。")
 	}
+
 	longText += longTextSb319.String()
 
 	count := testTokenizeString(handle, longText)
@@ -322,7 +332,6 @@ func TestG1_VeryLongString(t *testing.T) {
 
 // TestG1_ZeroTokenCount tests handling of input that produces zero tokens.
 func TestG1_ZeroTokenCount(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -333,7 +342,6 @@ func TestG1_ZeroTokenCount(t *testing.T) {
 
 // TestG1_NullPointerHandling tests null pointer safety.
 func TestG1_NullPointerHandling(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -349,7 +357,6 @@ func TestG1_NullPointerHandling(t *testing.T) {
 
 // TestG2_ASCIIOnlyInput tests ASCII-only text.
 func TestG2_ASCIIOnlyInput(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -360,7 +367,6 @@ func TestG2_ASCIIOnlyInput(t *testing.T) {
 
 // TestG2_EmojiSequences tests emoji handling.
 func TestG2_EmojiSequences(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -371,7 +377,6 @@ func TestG2_EmojiSequences(t *testing.T) {
 
 // TestG2_MixedScripts tests mixed language scripts.
 func TestG2_MixedScripts(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -383,7 +388,6 @@ func TestG2_MixedScripts(t *testing.T) {
 
 // TestG2_CombiningCharacters tests combining diacritics.
 func TestG2_CombiningCharacters(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -394,7 +398,6 @@ func TestG2_CombiningCharacters(t *testing.T) {
 
 // TestG2_RTLText tests right-to-left text.
 func TestG2_RTLText(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -409,17 +412,18 @@ func TestG2_RTLText(t *testing.T) {
 
 // TestG3_LargeTokenArrays tests handling of 1000+ tokens.
 func TestG3_LargeTokenArrays(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
 	// Create text that should produce many tokens.
 	text := ""
+
 	var textSb430 strings.Builder
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		textSb430.WriteString("あ い う ")
 	}
+
 	text += textSb430.String()
 
 	count := testTokenizeString(handle, text)
@@ -428,13 +432,12 @@ func TestG3_LargeTokenArrays(t *testing.T) {
 
 // TestG3_RepeatedAllocDealloc tests allocation/deallocation cycles.
 func TestG3_RepeatedAllocDealloc(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
 	// Repeatedly tokenize and free - stress test memory management.
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		count := testTokenizeString(handle, "これはテストです。")
 		require.Positive(t, count, "Iteration %d: should tokenize successfully", i)
 	}
@@ -442,7 +445,6 @@ func TestG3_RepeatedAllocDealloc(t *testing.T) {
 
 // TestG3_ErrorPathCleanup tests cleanup on error conditions.
 func TestG3_ErrorPathCleanup(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -458,7 +460,6 @@ func TestG3_ErrorPathCleanup(t *testing.T) {
 
 // TestG3_UnicodeStringAllocation tests multi-byte string allocation.
 func TestG3_UnicodeStringAllocation(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -475,7 +476,6 @@ func TestG3_UnicodeStringAllocation(t *testing.T) {
 
 // TestG4_HighConcurrency tests 1000+ goroutines.
 func TestG4_HighConcurrency(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -487,17 +487,15 @@ func TestG4_HighConcurrency(t *testing.T) {
 		successCount atomic.Int32
 	)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
+	for range numGoroutines {
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			count := testTokenizeString(handle, "テスト")
 			if count >= 0 {
 				successCount.Add(1)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -507,7 +505,6 @@ func TestG4_HighConcurrency(t *testing.T) {
 
 // TestG4_ConcurrentInitDestroy tests concurrent handle lifecycle.
 func TestG4_ConcurrentInitDestroy(t *testing.T) {
-
 	const numOps = 100
 
 	var (
@@ -515,11 +512,9 @@ func TestG4_ConcurrentInitDestroy(t *testing.T) {
 		successCount atomic.Int32
 	)
 
-	for i := 0; i < numOps; i++ {
-		wg.Add(1)
+	for range numOps {
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			handle := KagomeInit()
 			if handle == nil {
@@ -533,7 +528,7 @@ func TestG4_ConcurrentInitDestroy(t *testing.T) {
 			}
 
 			KagomeDestroy(handle)
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -558,19 +553,17 @@ func TestG4_ThreadSafetyOfSharedInstance(t *testing.T) {
 		successCount atomic.Int32
 	)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
+	for range numGoroutines {
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				count := testTokenizeString(handle, "並行処理")
 				if count >= 0 {
 					successCount.Add(1)
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -581,7 +574,6 @@ func TestG4_ThreadSafetyOfSharedInstance(t *testing.T) {
 
 // TestG4_HandlePersistence tests handles persisting across operations.
 func TestG4_HandlePersistence(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -593,11 +585,9 @@ func TestG4_HandlePersistence(t *testing.T) {
 		successCount atomic.Int32
 	)
 
-	for i := 0; i < iterations; i++ {
-		wg.Add(1)
+	for range iterations {
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			// Verify handle still exists and works.
 			if !testHandleExists(handle) {
@@ -608,7 +598,7 @@ func TestG4_HandlePersistence(t *testing.T) {
 			if count >= 0 {
 				successCount.Add(1)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -622,7 +612,6 @@ func TestG4_HandlePersistence(t *testing.T) {
 
 // TestG5_TokenizationAfterFailed tests tokenization after failed operations.
 func TestG5_TokenizationAfterFailed(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -638,13 +627,12 @@ func TestG5_TokenizationAfterFailed(t *testing.T) {
 
 // TestG5_InstanceReuseAfterErrors tests instance reuse after error conditions.
 func TestG5_InstanceReuseAfterErrors(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
 	// Multiple error-recovery cycles.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		// Error: NULL handle.
 		count := testTokenizeString(nil, "test")
 		require.Equal(t, 0, count)
@@ -657,7 +645,6 @@ func TestG5_InstanceReuseAfterErrors(t *testing.T) {
 
 // TestG5_HandleReusePatterns tests various handle reuse patterns.
 func TestG5_HandleReusePatterns(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -680,7 +667,6 @@ func TestG5_HandleReusePatterns(t *testing.T) {
 
 // TestG5_PartialAllocationCleanup tests cleanup of partially allocated tokens.
 func TestG5_PartialAllocationCleanup(t *testing.T) {
-
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -688,7 +674,7 @@ func TestG5_PartialAllocationCleanup(t *testing.T) {
 	testText := "部分的な割り当てクリーンアップテスト"
 
 	// Allocate and immediately free (stress cleanup paths).
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		count := testTokenizeString(handle, testText)
 		require.Positive(t, count, "Iteration %d: should tokenize", i)
 	}

@@ -8,9 +8,16 @@ Issues, improvements, and testing tasks for kagome-py.
 
 All MUST FIX items done. Release is unblocked.
 
-### Testing & Robustness - v2.1+ [NEW]
+### Testing & Robustness - v2.1+ [COMPLETE ✅]
 
-Comprehensive edge case, niche, and critical tests organized by language.
+All comprehensive edge case tests implemented (55 total tests, 100% pass rate).
+- ✅ G1-G5 Go tests: 24 tests
+- ✅ P1-P6 Python tests: 31 tests
+
+### Go Code Quality & Maintainability - v2.1+ [IN PROGRESS]
+
+Code review identified linting issues and refactoring opportunities for contributor-friendliness.
+**Goal:** Make codebase easy to enhance and extend.
 
 ---
 
@@ -26,150 +33,135 @@ Comprehensive edge case, niche, and critical tests organized by language.
 
 ---
 
-## Testing & Robustness for v2.1+ (NEW)
+## Testing & Robustness for v2.1+ [COMPLETE ✅]
 
 Comprehensive test coverage organized by language: Go first, then Python.
 
-### GO TESTS: Edge Cases & Robustness
+### GO TESTS: G1-G5 [COMPLETE ✅]
 
-#### G1. Go: Edge Cases - Empty & Boundary Inputs
+**File:** `_src_c/go/main_test.go` - 24 comprehensive tests
 
-**File:** `_src_c/go/main_test.go`
+- ✅ **G1** (5 tests): Edge cases - empty, single char, 100KB+ text, boundaries, null pointers
+- ✅ **G2** (5 tests): Unicode - ASCII, emoji, mixed scripts, combining chars, RTL text
+- ✅ **G3** (4 tests): Memory - large arrays (1000+), allocation cycles, error cleanup, unicode
+- ✅ **G4** (5 tests): Concurrency - 1000+ goroutines, concurrent init/destroy, shared instance, persistence
+- ✅ **G5** (5 tests): Error recovery - after failures, instance reuse, handle patterns, partial cleanup
 
-- Test empty string input: `KagomeTokenizeStruct(handle, "")`
-- Test single character: `KagomeTokenizeStruct(handle, "a")`
-- Test very long string (100KB+)
-- Test max int boundaries for token counts
-- Test null pointer handling
+**Status:** All 24 tests passing ✅ | Coverage: 70.5% statements | Commit: 8d0e7d4
 
-**Priority:** HIGH - Foundation for robustness
+### PYTHON TESTS: P1-P6 [COMPLETE ✅]
 
-#### G2. Go: Unicode Edge Cases
+**File:** `tests/libkagome_test.py` - 31 comprehensive tests
 
-**File:** `_src_c/go/main_test.go`
+- ✅ **P1** (5 tests): Edge cases - empty, single char, 100KB+ text, whitespace
+- ✅ **P2** (5 tests): Unicode - ASCII, emoji, mixed scripts, diacritics, RTL
+- ✅ **P3** (6 tests): wakati() method - empty, single word, sentence, ASCII, mixed, consistency
+- ✅ **P4** (6 tests): Token equality - __eq__ with None/str/Token, repr, list membership
+- ✅ **P5** (3 tests): Multiple instances - independent, reuse, memory
+- ✅ **P6** (4 tests): Version & metadata - __version__, __all__, docstring, public API
 
-- Test ASCII-only input: `"hello world"`
-- Test emoji sequences: `"👍🎉"`
-- Test mixed scripts: `"Hello こんにちは 你好"`
-- Test surrogate pairs and combining characters
-- Test RTL text: `"العربية"`, `"עברית"`
-- Test zero-width characters
-
-**Priority:** HIGH - Japanese NLP must handle Unicode correctly
-
-#### G3. Go: Memory & Allocation Critical Cases
-
-**File:** `_src_c/go/main_test.go`
-
-- Test large token arrays (1000+ tokens per input)
-- Test repeated allocation/deallocation cycles (stress test)
-- Test memory cleanup on error paths
-- Test string field allocation with unicode characters (multi-byte)
-
-**Priority:** CRITICAL - Memory leaks would be fatal
-
-#### G4. Go: Concurrency Edge Cases
-
-**File:** `_src_c/go/main_test.go`
-
-- Test high concurrency (1000+ goroutines)
-- Test concurrent initialization/destruction of instances
-- Test concurrent access to same instance (thread safety verification)
-- Test handles persisting across concurrent operations
-
-**Priority:** MEDIUM - Current test only checks map access
-
-#### G5. Go: Error Recovery & State Integrity
-
-**File:** `_src_c/go/main_test.go`
-
-- Test tokenization after failed operations
-- Test instance reuse after errors
-- Test handle reuse patterns
-- Test cleanup of partially-allocated tokens
-
-**Priority:** MEDIUM - Ensures state consistency
+**Status:** All 31 tests passing ✅ | 100% success rate | Commit: ee592a9
 
 ---
 
-### PYTHON TESTS: Edge Cases & Robustness
+## Go Code Quality & Maintainability (v2.1+)
 
-#### P1. Python: Edge Cases - Empty & Boundary Inputs
+### Linting & Code Clarity [IN PROGRESS]
 
-**File:** `tests/libkagome_test.py` (migrate to pytest)
+**Goal:** Fix golangci-lint issues and improve contributor-friendliness
 
-- Test empty string: `kagome.tokenize("")`
-- Test single character: `kagome.tokenize("a")`
-- Test very long text (100KB+)
-- Test whitespace-only: `kagome.tokenize("   \n\t  ")`
-- Test single ASCII character
+#### PRIORITY 1: Fix Linting Errors (automation blocker)
 
-**Priority:** HIGH - Basic input validation
+**File:** `_src_c/go/.golangci.yml`
 
-#### P2. Python: Unicode Edge Cases
+- [ ] Add `github.com/KEINOS/kagome-py/libkagome/internal/cgotest` to depguard allowlist
+  - **Impact:** Unblocks CI/CD automation
+  - **Effort:** 5 minutes
+  - **Status:** Ready to fix
 
-**File:** `tests/libkagome_test.py`
+**Issues Addressed:** 1 depguard error
 
-- Test ASCII input: `kagome.tokenize("hello world")`
-- Test emoji: `kagome.tokenize("👍 Great! 🎉")`
-- Test mixed scripts: `kagome.tokenize("English 日本語 中文 العربية")`
-- Test combining diacritics: `kagome.tokenize("café naïve")`
-- Test surrogate pairs
-- Test RTL text
+#### PRIORITY 2: Reduce Cyclomatic Complexity
 
-**Priority:** HIGH - International text handling
+**File:** `_src_c/go/internal/cgotest/helpers.go:101`
 
-#### P3. Python: wakati() Method Coverage
+- [ ] Refactor `CleanupAllocatedTokens()` - complexity 15 → target 6
+  - Extract `tokenStrings` struct with `freeAll()` method
+  - Reduces 10 separate nil-checks to 1 call
+  - Improves testability and maintainability
+  - **Effort:** 30 minutes
+  - **Impact:** Makes function easier to modify
 
-**File:** `tests/libkagome_test.py`
+**Issues Addressed:** 1 cyclop error
 
-- Test empty string: `kagome.wakati("")`
-- Test single word: `kagome.wakati("テスト")`
-- Test sentence breakdown: `kagome.wakati("今日は天気です")`
-- Test ASCII: `kagome.wakati("hello world")`
-- Test mixed content
-- Verify wakati vs tokenize consistency
+#### PRIORITY 3: Improve Variable Naming (readability)
 
-**Priority:** HIGH - wakati() currently untested
+**File:** `_src_c/go/main_test.go` + `helpers.go`
 
-#### P4. Python: Token Equality & Comparison Edge Cases
+- [ ] Rename `wg` → `goroutineGroup` (3 locations, 15+ line scopes)
+  - **Effort:** 15 minutes
+  - **Impact:** Code is easier to scan and understand
 
-**File:** `tests/libkagome_test.py`
+- [ ] Rename loop variable `i` → `iteration` (where body > 2 lines)
+  - **Effort:** 10 minutes
+  - **Impact:** Clearer intent in complex loops
 
-- Test Token.__eq__ with None: `token == None`
-- Test Token.__eq__ with string: `token == "すもも"`
-- Test Token.__eq__ with different Token instances from same text
-- Test Token.__eq__ with different texts
-- Test Token in list: `token in [token1, token2]`
-- Test repr() output parsing (self-consistency)
+**Issues Addressed:** 4 varnamelen warnings
 
-**Priority:** MEDIUM - New __eq__/__repr__ methods need coverage
+#### PRIORITY 4: Code Style Consistency
 
-#### P5. Python: Multiple Instances & Reuse
+**File:** `_src_c/go/internal/cgotest/helpers.go`
 
-**File:** `tests/libkagome_test.py`
+- [ ] Add blank lines before return statements (nlreturn)
+  - Locations: lines 49-50, 72-74
+  - **Effort:** 5 minutes
 
-- Test creating multiple Kagome instances
-- Test sharing instances between threads (current behavior)
-- Test instance reuse after multiple tokenizations
-- Test memory behavior with many instances
+- [ ] Use Go 1.22+ range syntax where loop var unused
+  - Location: line 127 `for i := 0; i < count; i++` → `for range count`
+  - **Effort:** 5 minutes
 
-**Priority:** MEDIUM - Real-world usage pattern
+**Issues Addressed:** 4 style warnings (nlreturn + intrange)
 
-#### P6. Python: Version & Metadata
+#### PRIORITY 5: Suppress Intentional Paralleltest Warnings
 
-**File:** `tests/libkagome_test.py`
+**File:** `.golangci.yml` or individual test functions
 
-- Test `__version__` is defined and matches pyproject.toml
-- Test `__all__` exports Kagome and Token only
-- Test module docstring exists
-- Test public API accessibility
+- [ ] Add linter suppression for tests modifying global instances map
+  - **Why:** Tests MUST NOT use t.Parallel() due to shared state
+  - **Approach:** Use `//nolint:paralleltest` on test functions
+  - **Effort:** 10 minutes
+  - **Impact:** Silences expected warnings, documents intent
 
-**Priority:** LOW - Metadata integrity
+**Issues Addressed:** 27 paralleltest warnings
+
+#### PRIORITY 6: Minor Style Fixes
+
+**File:** Various
+
+- [ ] Add gosmopolitan nolint comments (already mostly done)
+  - Already suppressed in G2/G5 tests
+  - **Effort:** 0 minutes (done)
+
+**Total Effort:** ~90 minutes to complete all issues
+**Expected Result:** `golangci-lint run` with 0 issues
+
+### Code Review Documents
+
+- [ ] Commit CODE_REVIEW.md with detailed analysis
+  - Includes architecture assessment, security audit
+  - Contribution readiness checklist
+  - Enhancement opportunities for v2.2+
+  - **Status:** Ready to commit
 
 ---
 
-## Deferred Items (v2.1+)
+## Deferred Items (v2.2+)
+
+### Go Code Quality (from v2.1)
+
+- Refactor `CleanupAllocatedTokens()` complexity (deferred from v2.1)
+- Add internal test package documentation
+- Parallel test refactor (advanced: enable t.Parallel() on all tests)
 
 ### CI/CD & Refactoring
 
@@ -187,12 +179,13 @@ Comprehensive test coverage organized by language: Go first, then Python.
 - CLI entry point (`python -m libkagome`)
 - Type hints with `py.typed` marker
 - Explicit `__all__` exports
+- Add example_test.go for contributor reference
 
 ---
 
 ## Implementation Notes
 
-**Testing Strategy:**
+**Testing Strategy (v2.1 - COMPLETE):**
 
 1. Go tests establish correctness and safety at FFI boundary
 2. Python tests verify language binding behavior
@@ -201,19 +194,34 @@ Comprehensive test coverage organized by language: Go first, then Python.
 
 **Test Organization:**
 
-- Go: Add to `_src_c/go/main_test.go`
-- Python: Create `tests/test_libkagome.py` (pytest format)
-- Keep existing `tests/libkagome_test.py` as integration test
+- Go: Organized in `_src_c/go/main_test.go` by G1-G5 categories
+  - Uses testify/require for assertions
+  - Comprehensive helper functions in `internal/cgotest/helpers.go`
+  - 24 tests covering all critical paths
+
+- Python: Organized in `tests/libkagome_test.py` by P1-P6 categories
+  - Hand-rolled test framework (pytest migration in v2.2+)
+  - 31 tests covering Python-specific behavior
+  - Original integration test preserved
 
 **Running Tests:**
 
 ```bash
-# Go
-cd _src_c/go && go test -v ./...
+# Go with coverage
+cd _src_c/go
+go test -cover ./...          # Run with coverage report
+golangci-lint run             # Check code quality
 
 # Python (existing)
 PYTHONPATH=./src python3 tests/libkagome_test.py
 
-# Python (new pytest)
-pytest tests/test_libkagome.py -v
+# Code review
+cat CODE_REVIEW.md            # Detailed analysis and recommendations
 ```
+
+**Code Quality Standards (v2.1):**
+
+- golangci-lint: strict checking, all issues must be fixed
+- Test coverage: minimum 70% (current: 70.5%)
+- Memory safety: no resource leaks allowed
+- Security: FFI boundary carefully audited

@@ -18,6 +18,7 @@ linters:
             - github.com/ikawaha/kagome/v2
             - github.com/ikawaha/kagome-dict
             - github.com/stretchr/testify
+            - github.com/KEINOS/kagome-py/libkagome/internal/cgotest
   disable:
     # Disabled due to wsl_v5
     - wsl
