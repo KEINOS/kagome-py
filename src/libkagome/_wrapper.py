@@ -152,6 +152,29 @@ class Token:
             f"start={self.start}, end={self.end}"
         )
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Token):
+            return NotImplemented
+        return (
+            self.surface == other.surface
+            and self.pos == other.pos
+            and self.base_form == other.base_form
+            and self.conj_type == other.conj_type
+            and self.conj_form == other.conj_form
+            and self.reading == other.reading
+            and self.pronunciation == other.pronunciation
+            and self.start == other.start
+            and self.end == other.end
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"Token(surface={self.surface!r}, pos={self.pos!r}, "
+            f"base_form={self.base_form!r}, conj_type={self.conj_type!r}, "
+            f"conj_form={self.conj_form!r}, reading={self.reading!r}, "
+            f"pronunciation={self.pronunciation!r}, start={self.start}, end={self.end})"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Kagome wrapper
