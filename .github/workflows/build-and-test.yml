@@ -137,40 +137,25 @@ jobs:
           echo "=== Wheel contents ==="
           unzip -l dist/*.whl | head -20
 
-      - name: Install wheel and test
+      - name: Install wheel and test (Windows)
+        if: runner.os == 'Windows'
         run: |
-          import subprocess
-          import sys
-          import os
-          from pathlib import Path
+          python -m venv test_venv
+          test_venv\Scripts\python -m pip install --upgrade pip
+          test_venv\Scripts\pip install (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName
+          test_venv\Scripts\python tests/libkagome_test.py
+        shell: pwsh
 
-          venv_path = Path("test_venv")
-          venv_path.mkdir(exist_ok=True)
-
-          # Create venv
-          subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
-
-          # Get python executable in venv
-          if sys.platform == "win32":
-            python_exe = venv_path / "Scripts" / "python.exe"
-            pip_exe = venv_path / "Scripts" / "pip.exe"
-          else:
-            python_exe = venv_path / "bin" / "python"
-            pip_exe = venv_path / "bin" / "pip"
-
-          # Find and install wheel
-          wheels = list(Path("dist").glob("*.whl"))
-          if not wheels:
-            raise RuntimeError("No wheel file found in dist/")
-
-          wheel_path = wheels[0]
-          print(f"Installing wheel: {wheel_path}")
-          subprocess.run([str(pip_exe), "install", str(wheel_path)], check=True)
-
-          # Run tests
-          print("Running tests...")
-          subprocess.run([str(python_exe), "tests/libkagome_test.py"], check=True)
-        shell: python
+      - name: Install wheel and test (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          python3 -m venv test_venv
+          source test_venv/bin/activate
+          pip install --upgrade pip
+          pip install dist/*.whl
+          python3 tests/libkagome_test.py
+          deactivate
 
       - name: Verify manylinux compliance (Linux only)
         if: runner.os == 'Linux'
