@@ -1,6 +1,15 @@
 #ifndef KAGOME_WRAPPER_H
 #define KAGOME_WRAPPER_H
 
+// Platform-specific export macro:
+// Windows DLL requires __declspec(dllexport) to add symbols to the export table.
+// ELF/Mach-O (Linux/macOS) uses __attribute__((visibility("default"))).
+#ifdef _WIN32
+    #define KAGOME_API __declspec(dllexport)
+#else
+    #define KAGOME_API __attribute__((visibility("default")))
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -51,7 +60,7 @@ extern "C" {
  *
  * Returns: Handle to tokenizer, or NULL on failure
  */
-void* kagome_init(void);
+KAGOME_API void* kagome_init(void);
 
 /*
  * Free a tokenizer.
@@ -60,7 +69,7 @@ void* kagome_init(void);
  *
  * Safe to call with NULL.
  */
-void kagome_destroy(void* handle);
+KAGOME_API void kagome_destroy(void* handle);
 
 /*
  * Tokenize Japanese text.
@@ -72,7 +81,7 @@ void kagome_destroy(void* handle);
  *
  * You MUST call kagome_free_token_array() to free the result.
  */
-TokenArray* kagome_tokenize(void* handle, const char* input);
+KAGOME_API TokenArray* kagome_tokenize(void* handle, const char* input);
 
 /*
  * Free tokenization results.
@@ -81,7 +90,7 @@ TokenArray* kagome_tokenize(void* handle, const char* input);
  *
  * Safe to call with NULL.
  */
-void kagome_free_token_array(TokenArray* arr);
+KAGOME_API void kagome_free_token_array(TokenArray* arr);
 
 /*
  * Echo a string (for testing FFI setup).
@@ -99,7 +108,7 @@ void kagome_free_token_array(TokenArray* arr);
  *
  * You MUST call kagome_echo_free() to free the result.
  */
-char* kagome_echo(const char* input);
+KAGOME_API char* kagome_echo(const char* input);
 
 /*
  * Free string returned by kagome_echo().
@@ -108,7 +117,7 @@ char* kagome_echo(const char* input);
  *
  * Safe to call with NULL.
  */
-void kagome_echo_free(char* str);
+KAGOME_API void kagome_echo_free(char* str);
 
 #ifdef __cplusplus
 }
