@@ -4,21 +4,21 @@ Issues and improvements found during code review (2026-02-09).
 
 ## Priority Summary for v2.10.3 Initial Release
 
-### ✅ MUST FIX BEFORE RELEASE (5 items)
+### MUST FIX BEFORE RELEASE (5 items)
 1. Fix `macos-12` → `macos-15-intel` in publish.yml (#1)
 2. Single-source version (remove duplication #2)
 3. Add `__eq__` / `__repr__` to Token (#3)
 4. Add Go tests to publish.yml (#5)
 5. Fix Windows Arm64 claim in README (#18)
 
-### ⚠️ SHOULD CONSIDER (5 items)
+### SHOULD CONSIDER (5 items)
 - Verify macOS deployment target (#7)
 - Document thread-safety (#9)
 - Add `wakati()` test (#11)
 - Add `-pthread` on Linux (#15)
 - Python version matrix in CI (#6)
 
-### 📌 DEFER TO v2.1+ (9 items)
+### DEFER TO v2.1+ (9 items)
 - Refactor build steps into reusable workflow (#4)
 - Context manager support (#8)
 - Migrate to pytest (#12)
@@ -29,7 +29,7 @@ Issues and improvements found during code review (2026-02-09).
 
 ## Critical / Bugs
 
-### 1. publish.yml still uses deprecated `macos-12` runner ⚠️ **BLOCKING**
+### 1. publish.yml still uses deprecated `macos-12` runner [BLOCKING]
 
 [publish.yml](.github/workflows/publish.yml) line 33 still has `os: macos-12`, which was already fixed in `build-and-test.yml` → `macos-15-intel`. The publish workflow will hang indefinitely on release.
 
@@ -37,7 +37,7 @@ Issues and improvements found during code review (2026-02-09).
 **Fix:** Change `macos-12` → `macos-15-intel` (same fix applied to `build-and-test.yml`)
 **Priority:** CRITICAL - Must fix before first release
 
-### 2. Version is duplicated in two files ⚠️ **IMPORTANT**
+### 2. Version is duplicated in two files [IMPORTANT]
 
 `__version__` is defined in both `pyproject.toml` and `src/libkagome/__init__.py`. They can easily drift.
 
@@ -45,7 +45,7 @@ Issues and improvements found during code review (2026-02-09).
 **Fix:** Use `importlib.metadata.version("kagome-py")` in `__init__.py` to read from installed metadata
 **Priority:** HIGH - Maintenance issue, should fix before first release
 
-### 3. `Token` class lacks `__eq__` and `__repr__` ⚠️ **SHOULD FIX**
+### 3. `Token` class lacks `__eq__` and `__repr__` [SHOULD FIX]
 
 `Token.__str__` exists but `__eq__` and `__repr__` are missing. This makes testing and debugging harder.
 
@@ -57,14 +57,14 @@ Issues and improvements found during code review (2026-02-09).
 
 ## CI/CD
 
-### 4. Build steps are duplicated between `build-and-test.yml` and `publish.yml` 📌 **REFACTOR**
+### 4. Build steps are duplicated between `build-and-test.yml` and `publish.yml` [REFACTOR]
 
 The two workflows have near-identical build steps. Any fix to one must be manually applied to the other.
 
 **Fix:** Extract shared build steps into a reusable workflow (`workflow_call`) or a composite action
 **Priority:** MEDIUM - Refactoring, can defer to future (but should do to prevent drift)
 
-### 5. Go tests are skipped in `publish.yml` ⚠️ **SHOULD FIX**
+### 5. Go tests are skipped in `publish.yml` [SHOULD FIX]
 
 `build-and-test.yml` runs `go test -v ./...` but `publish.yml` skips it. A release could be published from untested Go code.
 
@@ -72,14 +72,14 @@ The two workflows have near-identical build steps. Any fix to one must be manual
 **Fix:** Add `go test -v ./...` step, or extract into reusable workflow (see #4)
 **Priority:** HIGH - Ensure released code is tested
 
-### 6. No Python version matrix in CI 📌 **ENHANCEMENT**
+### 6. No Python version matrix in CI [ENHANCEMENT]
 
 CI only tests against Python 3.12, but `pyproject.toml` declares 3.10–3.13 support.
 
 **Fix:** Add test matrix for Python 3.10/3.11/3.12/3.13
 **Priority:** MEDIUM - Testing, important for multi-version support
 
-### 7. `wheel_plat` tag `macosx_10_13_x86_64` may be too low ⚠️ **VERIFY**
+### 7. `wheel_plat` tag `macosx_10_13_x86_64` may be too low [VERIFY]
 
 Wheel built on macOS 15 but tagged as `macosx_10_13`. Deployment target may be incompatible.
 
@@ -90,7 +90,7 @@ Wheel built on macOS 15 but tagged as `macosx_10_13`. Deployment target may be i
 
 ## Python Code
 
-### 8. `Kagome` does not support context manager protocol 📌 **ENHANCEMENT**
+### 8. `Kagome` does not support context manager protocol [ENHANCEMENT]
 
 Users must rely on `__del__` for cleanup. A context manager would give deterministic resource cleanup.
 
@@ -98,7 +98,7 @@ Users must rely on `__del__` for cleanup. A context manager would give determini
 **Fix:** Add `__enter__` / `__exit__` methods
 **Priority:** LOW - Nice-to-have, can defer to v2.1.0
 
-### 9. `Kagome` is not thread-safe on the Python side 📌 **DOCUMENT**
+### 9. `Kagome` is not thread-safe on the Python side [DOCUMENT]
 
 Go side is thread-safe but Python calls aren't protected. GIL masks this in CPython, but it's fragile.
 
@@ -106,7 +106,7 @@ Go side is thread-safe but Python calls aren't protected. GIL masks this in CPyt
 **Fix:** Document thread-safety guarantees, or add `threading.Lock` around FFI calls
 **Priority:** MEDIUM - Should at least document current behavior
 
-### 10. Module-level docstring placement ✅ **SHOULD FIX (EASY)**
+### 10. Module-level docstring placement [SHOULD FIX - EASY]
 
 Module docstring in `_wrapper.py` is **after** imports, won't be recognized as `__doc__`.
 
@@ -114,7 +114,7 @@ Module docstring in `_wrapper.py` is **after** imports, won't be recognized as `
 **Fix:** Move docstring before `from __future__` import
 **Priority:** LOW - Code quality, easy fix
 
-### 11. `wakati()` test coverage missing ✅ **SHOULD ADD**
+### 11. `wakati()` test coverage missing [SHOULD ADD]
 
 Test script only covers `tokenize()`, not `wakati()`.
 
@@ -126,7 +126,7 @@ Test script only covers `tokenize()`, not `wakati()`.
 
 ## Testing
 
-### 12. Test script is not using a proper test framework 📌 **REFACTOR**
+### 12. Test script is not using a proper test framework [REFACTOR]
 
 Hand-rolled test script comparing string representations. Fragile and no `pytest` integration.
 
@@ -134,14 +134,14 @@ Hand-rolled test script comparing string representations. Fragile and no `pytest
 **Priority:** MEDIUM - Better testing infrastructure for future maintenance
 **Benefit:** Per-test granularity, coverage reporting, CI integration
 
-### 13. No edge-case tests 📌 **ENHANCEMENT**
+### 13. No edge-case tests [ENHANCEMENT]
 
 No tests for empty strings, ASCII, very long input, Unicode edge cases, multiple instances, etc.
 
 **Fix:** Add edge-case test suite
 **Priority:** LOW - Can defer to future maintenance
 
-### 14. Go concurrent test doesn't test C interop 📌 **KNOWN LIMITATION**
+### 14. Go concurrent test doesn't test C interop [KNOWN LIMITATION]
 
 `TestKagomeTokenizeConcurrent` only checks map access, not actual tokenization.
 
@@ -153,7 +153,7 @@ No tests for empty strings, ASCII, very long input, Unicode edge cases, multiple
 
 ## Build / Packaging
 
-### 15. `setup.py` sdist build doesn't pass `-pthread` on Linux ⚠️ **SHOULD FIX**
+### 15. `setup.py` sdist build doesn't pass `-pthread` on Linux [SHOULD FIX]
 
 Missing `-pthread` for Linux. Go runtime requires pthreads. May work by accident but not guaranteed.
 
@@ -161,13 +161,13 @@ Missing `-pthread` for Linux. Go runtime requires pthreads. May work by accident
 **Fix:** Add `-lpthread` (or `-pthread`) to Linux `cc` command
 **Priority:** HIGH - Potential runtime failure on some Linux systems
 
-### 16. No `.gitkeep` verification ℹ️ **MINOR**
+### 16. No `.gitkeep` verification [MINOR]
 
 `.gitignore` references `.gitkeep` files but no CI verification they exist.
 
 **Priority:** LOW - Cosmetic
 
-### 17. MANIFEST.in comment about build artifacts ℹ️ **DOCUMENTATION**
+### 17. MANIFEST.in comment about build artifacts [DOCUMENTATION]
 
 No comment explaining why `_src_c/build/` is excluded yet `libkagome.h` is generated during install.
 
@@ -179,7 +179,7 @@ No comment explaining why `_src_c/build/` is excluded yet `libkagome.h` is gener
 
 ## Documentation
 
-### 18. README claims Windows Arm64 support ✅ **SHOULD FIX (EASY)**
+### 18. README claims Windows Arm64 support [SHOULD FIX - EASY]
 
 README says "Windows (x86_64, Arm64)" but currently only x86_64 is supported.
 
@@ -187,18 +187,18 @@ README says "Windows (x86_64, Arm64)" but currently only x86_64 is supported.
 **Fix:** Remove Arm64 from README Windows support claim
 **Priority:** HIGH - Documentation accuracy for initial release
 
-### 19. Stale documentation files ✅ **ALREADY DONE**
+### 19. Stale documentation files [ALREADY DONE]
 
 Removed `IMPLEMENTATION_SUMMARY.md`, `CI_CD_FIXES.md`, `todo.md` in cleanup pass.
 Renamed `QUICKSTART_PIP.md` → `DEVELOPMENT.md`
 
-**Status:** ✅ COMPLETE
+**Status:** COMPLETE
 
-### 20. `CONTRIBUTING.md` references non-existent `docker/` directory ✅ **ALREADY DONE**
+### 20. `CONTRIBUTING.md` references non-existent `docker/` directory [ALREADY DONE]
 
 Removed reference to non-existent `docker/` directory.
 
-**Status:** ✅ COMPLETE
+**Status:** COMPLETE
 
 ---
 
