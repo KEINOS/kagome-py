@@ -1,3 +1,5 @@
+// Package main provides C FFI bindings for Kagome, a Japanese morphological analyzer.
+// It exports a C API for initializing, tokenizing, and managing Kagome instances.
 package main
 
 /*
@@ -44,6 +46,25 @@ import (
 )
 
 // ------------------------------------------------------------------
+// Constants for token feature indices
+// ------------------------------------------------------------------
+
+const (
+	posIndex0 = iota // POS hierarchy 0 (major class)
+	posIndex1        // POS hierarchy 1 (middle class)
+	posIndex2        // POS hierarchy 2 (small class)
+	posIndex3        // POS hierarchy 3 (fine class)
+)
+
+const (
+	conjTypeIndex      = 4 // Conjugation type
+	conjFormIndex      = 5 // Conjugation form
+	baseFormIndex      = 6 // Base form
+	readingIndex       = 7 // Reading in katakana
+	pronunciationIndex = 8 // Pronunciation
+)
+
+// ------------------------------------------------------------------
 // Internal state management
 // ------------------------------------------------------------------
 
@@ -54,33 +75,39 @@ import (
 //	Go pointers must never be passed to C.
 //	Therefore, we allocate a dummy pointer using C.malloc()
 //	and use that pointer as the external handle.
+//
+//nolint:gochecknoglobals // Required for FFI handle management.
 var (
-	mu        sync.Mutex
-	instances = make(map[unsafe.Pointer]*tokenizer.Tokenizer)
+	instanceMutex = sync.Mutex{}
+	instances     = make(map[unsafe.Pointer]*tokenizer.Tokenizer)
 )
 
 // ------------------------------------------------------------------
 // Helper utilities
 // ------------------------------------------------------------------
 
-// getOrEmpty returns arr[idx] if it exists, otherwise an empty string.
+// getOrEmpty returns arr[index] if it exists, otherwise an empty string.
 // This avoids bounds checks at every call site.
-func getOrEmpty(arr []string, idx int) string {
-	if idx >= 0 && idx < len(arr) {
-		return arr[idx]
+func getOrEmpty(arr []string, index int) string {
+	if index >= 0 && index < len(arr) {
+		return arr[index]
 	}
+
 	return ""
 }
 
-// wouldOverflowTokenAllocation checks if allocating n tokens would cause integer overflow.
+// wouldOverflowTokenAllocation checks if allocating count tokens would cause integer overflow.
 // Returns true if the allocation would be unsafe.
-func wouldOverflowTokenAllocation(n int) bool {
-	if n < 0 {
+func wouldOverflowTokenAllocation(count int) bool {
+	if count < 0 {
 		return true
 	}
+
+	//nolint:exhaustruct // C struct size calculation, fields not needed.
 	tokenSize := C.size_t(unsafe.Sizeof(C.Token{}))
 	maxSafeTokens := (^C.size_t(0)) / tokenSize
-	return C.size_t(n) > maxSafeTokens
+
+	return C.size_t(count) > maxSafeTokens
 }
 
 // freeStrings safely frees multiple C strings.
@@ -99,10 +126,10 @@ func freeStrings(strs ...*C.char) {
 
 //export KagomeInit
 func KagomeInit() unsafe.Pointer {
-	mu.Lock()
-	defer mu.Unlock()
+	instanceMutex.Lock()
+	defer instanceMutex.Unlock()
 
-	t, err := tokenizer.New(
+	tok, err := tokenizer.New(
 		ipa.Dict(),
 		tokenizer.OmitBosEos(),
 	)
@@ -117,7 +144,8 @@ func KagomeInit() unsafe.Pointer {
 		return nil
 	}
 
-	instances[handle] = t
+	instances[handle] = tok
+
 	return handle
 }
 
@@ -127,12 +155,100 @@ func KagomeDestroy(handle unsafe.Pointer) {
 		return
 	}
 
-	mu.Lock()
+	instanceMutex.Lock()
 	delete(instances, handle)
-	mu.Unlock()
+	instanceMutex.Unlock()
 
 	// Free the dummy handle allocated in KagomeInit.
 	C.free(handle)
+}
+
+// tokenStrings holds all C strings for a single token.
+type tokenStrings struct {
+	surface, pos1, pos2, pos3, pos4           *C.char
+	conjType, conjForm, baseForm, reading     *C.char
+	pronunciation                             *C.char
+}
+
+// allocateTokenStrings allocates C strings for a single token.
+// Returns all allocated strings or nil for any, indicating allocation failure.
+func allocateTokenStrings(tok *tokenizer.Token) tokenStrings {
+	pos := tok.POS()
+	features := tok.Features()
+
+	return tokenStrings{
+		surface:       C.CString(tok.Surface),
+		pos1:          C.CString(getOrEmpty(pos, posIndex0)),
+		pos2:          C.CString(getOrEmpty(pos, posIndex1)),
+		pos3:          C.CString(getOrEmpty(pos, posIndex2)),
+		pos4:          C.CString(getOrEmpty(pos, posIndex3)),
+		conjType:      C.CString(getOrEmpty(features, conjTypeIndex)),
+		conjForm:      C.CString(getOrEmpty(features, conjFormIndex)),
+		baseForm:      C.CString(getOrEmpty(features, baseFormIndex)),
+		reading:       C.CString(getOrEmpty(features, readingIndex)),
+		pronunciation: C.CString(getOrEmpty(features, pronunciationIndex)),
+	}
+}
+
+// allocationsFailed checks if any string allocation in tokenStrings failed.
+func (ts tokenStrings) allocationsFailed() bool {
+	return ts.surface == nil || ts.pos1 == nil || ts.pos2 == nil ||
+		ts.pos3 == nil || ts.pos4 == nil || ts.conjType == nil ||
+		ts.conjForm == nil || ts.baseForm == nil || ts.reading == nil ||
+		ts.pronunciation == nil
+}
+
+// checkAndStoreToken verifies string allocations and stores token in slice.
+// Returns false if any string allocation failed, indicating cleanup is needed.
+func checkAndStoreToken(index int, slice []C.Token, tok *tokenizer.Token, strings tokenStrings) bool {
+	if strings.allocationsFailed() {
+		return false
+	}
+
+	slice[index] = C.Token{
+		surface:       strings.surface,
+		pos1:          strings.pos1,
+		pos2:          strings.pos2,
+		pos3:          strings.pos3,
+		pos4:          strings.pos4,
+		conj_type:     strings.conjType,
+		conj_form:     strings.conjForm,
+		base_form:     strings.baseForm,
+		reading:       strings.reading,
+		pronunciation: strings.pronunciation,
+		start:         C.int(tok.Start),
+		end:           C.int(tok.End),
+	}
+
+	return true
+}
+
+// cleanupTokens frees all strings in tokens up to the given count.
+func cleanupTokens(slice []C.Token, count int) {
+	for index := range count {
+		token := slice[index]
+
+		freeStrings(
+			token.surface,
+			token.pos1,
+			token.pos2,
+			token.pos3,
+			token.pos4,
+			token.conj_type,
+			token.conj_form,
+			token.base_form,
+			token.reading,
+			token.pronunciation,
+		)
+	}
+}
+
+// free frees all strings in a tokenStrings struct.
+func (ts tokenStrings) free() {
+	freeStrings(
+		ts.surface, ts.pos1, ts.pos2, ts.pos3, ts.pos4,
+		ts.conjType, ts.conjForm, ts.baseForm, ts.reading, ts.pronunciation,
+	)
 }
 
 //export KagomeTokenizeStruct
@@ -141,109 +257,71 @@ func KagomeTokenizeStruct(handle unsafe.Pointer, input *C.char) *C.TokenArray {
 		return nil
 	}
 
-	// Lock ONLY for map access
-	mu.Lock()
-	t := instances[handle]
-	mu.Unlock() // early unlock after getting the instance
+	// Lock ONLY for map access.
+	instanceMutex.Lock()
+	tokenizer := instances[handle]
+	instanceMutex.Unlock() // early unlock after getting the instance
 
-	if t == nil {
+	if tokenizer == nil {
 		return nil
 	}
 
 	text := C.GoString(input)
-	tokens := t.Tokenize(text)
-	n := len(tokens)
+	tokens := tokenizer.Tokenize(text)
+	count := len(tokens)
 
-	// Check for integer overflow in allocation
-	if wouldOverflowTokenAllocation(n) {
+	// Check for integer overflow in allocation.
+	if wouldOverflowTokenAllocation(count) {
 		return nil
 	}
 
 	// Allocate TokenArray (always owned by caller).
+	//nolint:exhaustruct // C struct size calculation, fields not needed.
 	arr := (*C.TokenArray)(C.malloc(C.size_t(unsafe.Sizeof(C.TokenArray{}))))
 	if arr == nil {
 		return nil
 	}
 
-	arr.length = C.int(n)
+	arr.length = C.int(count)
 
-	if n == 0 {
+	if count == 0 {
 		arr.tokens = nil
+
 		return arr
 	}
 
 	// Allocate contiguous Token array.
+	//nolint:exhaustruct // C struct size calculation, fields not needed.
 	cTokens := (*C.Token)(C.malloc(
-		C.size_t(n) * C.size_t(unsafe.Sizeof(C.Token{})),
+		C.size_t(count) * C.size_t(unsafe.Sizeof(C.Token{})),
 	))
 	if cTokens == nil {
 		C.free(unsafe.Pointer(arr))
+
 		return nil
 	}
 
-	slice := unsafe.Slice(cTokens, n)
+	slice := unsafe.Slice(cTokens, count)
 
-	for i, tok := range tokens {
-		pos := tok.POS()
-		features := tok.Features()
+	for index, tok := range tokens {
+		strings := allocateTokenStrings(&tok)
 
-		// Allocate all strings for this token
-		surface := C.CString(tok.Surface)
-		pos1 := C.CString(getOrEmpty(pos, 0))
-		pos2 := C.CString(getOrEmpty(pos, 1))
-		pos3 := C.CString(getOrEmpty(pos, 2))
-		pos4 := C.CString(getOrEmpty(pos, 3))
-		conjType := C.CString(getOrEmpty(features, 4))
-		conjForm := C.CString(getOrEmpty(features, 5))
-		baseForm := C.CString(getOrEmpty(features, 6))
-		reading := C.CString(getOrEmpty(features, 7))
-		pronunciation := C.CString(getOrEmpty(features, 8))
+		if !checkAndStoreToken(index, slice, &tok, strings) {
+			// Free strings we just allocated for current token.
+			strings.free()
 
-		// Check if any allocation failed
-		if surface == nil || pos1 == nil || pos2 == nil || pos3 == nil || pos4 == nil ||
-			conjType == nil || conjForm == nil || baseForm == nil || reading == nil || pronunciation == nil {
-
-			// Free strings we just allocated for current token
-			freeStrings(surface, pos1, pos2, pos3, pos4, conjType, conjForm, baseForm, reading, pronunciation)
-
-			// Free all previously completed tokens
-			for j := 0; j < i; j++ {
-				freeStrings(
-					slice[j].surface,
-					slice[j].pos1,
-					slice[j].pos2,
-					slice[j].pos3,
-					slice[j].pos4,
-					slice[j].conj_type,
-					slice[j].conj_form,
-					slice[j].base_form,
-					slice[j].reading,
-					slice[j].pronunciation,
-				)
-			}
+			// Free all previously completed tokens.
+			cleanupTokens(slice, index)
 
 			C.free(unsafe.Pointer(cTokens))
 			C.free(unsafe.Pointer(arr))
-			return nil
-		}
 
-		slice[i] = C.Token{
-			surface:       surface,
-			pos1:          pos1,
-			pos2:          pos2,
-			pos3:          pos3,
-			pos4:          pos4,
-			conj_type:     conjType,
-			conj_form:     conjForm,
-			base_form:     baseForm,
-			reading:       reading,
-			pronunciation: pronunciation,
-			start:         C.int(tok.Start),
-			end:           C.int(tok.End),
+			return nil
 		}
 	}
 
 	arr.tokens = cTokens
+
 	return arr
 }
 
@@ -255,17 +333,17 @@ func KagomeFreeTokenArray(arr *C.TokenArray) {
 
 	if arr.tokens != nil {
 		slice := unsafe.Slice(arr.tokens, int(arr.length))
-		for _, t := range slice {
-			C.free(unsafe.Pointer(t.surface))
-			C.free(unsafe.Pointer(t.pos1))
-			C.free(unsafe.Pointer(t.pos2))
-			C.free(unsafe.Pointer(t.pos3))
-			C.free(unsafe.Pointer(t.pos4))
-			C.free(unsafe.Pointer(t.base_form))
-			C.free(unsafe.Pointer(t.conj_type))
-			C.free(unsafe.Pointer(t.conj_form))
-			C.free(unsafe.Pointer(t.reading))
-			C.free(unsafe.Pointer(t.pronunciation))
+		for _, token := range slice {
+			C.free(unsafe.Pointer(token.surface))
+			C.free(unsafe.Pointer(token.pos1))
+			C.free(unsafe.Pointer(token.pos2))
+			C.free(unsafe.Pointer(token.pos3))
+			C.free(unsafe.Pointer(token.pos4))
+			C.free(unsafe.Pointer(token.base_form))
+			C.free(unsafe.Pointer(token.conj_type))
+			C.free(unsafe.Pointer(token.conj_form))
+			C.free(unsafe.Pointer(token.reading))
+			C.free(unsafe.Pointer(token.pronunciation))
 		}
 		C.free(unsafe.Pointer(arr.tokens))
 	}
@@ -288,6 +366,7 @@ func Echo(input *C.char) *C.char {
 	if input == nil {
 		return nil
 	}
+
 	return C.CString(C.GoString(input))
 }
 

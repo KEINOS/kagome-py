@@ -11,22 +11,16 @@ import (
 // assertBool is a test helper for boolean assertions.
 func assertBool(t *testing.T, got, want bool, msgFmt string, args ...any) {
 	t.Helper()
+
 	if got != want {
 		t.Errorf(msgFmt, append(args, got, want)...)
-	}
-}
-
-// assertNil is a test helper for nil assertions.
-func assertNil(t *testing.T, got any, msg string) {
-	t.Helper()
-	if got != nil {
-		t.Errorf("%s: got non-nil, want nil", msg)
 	}
 }
 
 // assertNotNil is a test helper for non-nil assertions.
 func assertNotNil(t *testing.T, got any, msg string) {
 	t.Helper()
+
 	if got == nil {
 		t.Errorf("%s: got nil, want non-nil", msg)
 	}
@@ -71,6 +65,7 @@ func TestWouldOverflowTokenAllocation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got := wouldOverflowTokenAllocation(tt.n)
 			assertBool(t, got, tt.wantFail,
 				"wouldOverflowTokenAllocation(%d) = %v, want %v")
@@ -87,9 +82,11 @@ func TestKagomeInit(t *testing.T) {
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
 	// Verify handle was stored in instances map.
-	mu.Lock()
+	instanceMutex.Lock()
+
 	_, exists := instances[handle]
-	mu.Unlock()
+
+	instanceMutex.Unlock()
 
 	if !exists {
 		t.Error("Handle not found in instances map")
@@ -98,6 +95,8 @@ func TestKagomeInit(t *testing.T) {
 
 // TestKagomeDestroy tests tokenizer cleanup.
 func TestKagomeDestroy(t *testing.T) {
+	t.Parallel()
+
 	t.Run("normal cleanup", func(t *testing.T) {
 		t.Parallel()
 
@@ -107,9 +106,11 @@ func TestKagomeDestroy(t *testing.T) {
 		KagomeDestroy(handle)
 
 		// Verify handle was removed from instances map.
-		mu.Lock()
+		instanceMutex.Lock()
+
 		_, exists := instances[handle]
-		mu.Unlock()
+
+		instanceMutex.Unlock()
 
 		if exists {
 			t.Error("Handle still exists in instances map after destroy")
@@ -127,28 +128,37 @@ func TestKagomeDestroy(t *testing.T) {
 // This verifies that concurrent calls to KagomeTokenizeStruct don't cause
 // race conditions or crashes, which was a critical bug in early versions.
 func TestKagomeTokenizeConcurrent(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	assertNotNil(t, handle, "KagomeInit")
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
-	const numGoroutines = 10
-	const iterations = 50
+	const (
+		numGoroutines = 10
+		iterations    = 50
+	)
 
-	var wg sync.WaitGroup
-	var failCount atomic.Int32
+	var (
+		waitGroup sync.WaitGroup
+		failCount atomic.Int32
+	)
 
 	// Run concurrent tokenizations.
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
+	for range numGoroutines {
+		waitGroup.Add(1)
+
+		//nolint:modernize // WaitGroup.Go doesn't exist in sync package.
 		go func() {
-			defer wg.Done()
+			defer waitGroup.Done()
+
 			for range iterations {
 				testTokenizeCall(handle, &failCount)
 			}
 		}()
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	if count := failCount.Load(); count > 0 {
 		t.Errorf("Got %d failures during concurrent tokenization", count)
@@ -160,9 +170,11 @@ func TestKagomeTokenizeConcurrent(t *testing.T) {
 // without requiring C imports in the test file.
 func testTokenizeCall(handle unsafe.Pointer, failCount *atomic.Int32) {
 	// Verify handle is still valid and accessible.
-	mu.Lock()
+	instanceMutex.Lock()
+
 	_, exists := instances[handle]
-	mu.Unlock()
+
+	instanceMutex.Unlock()
 
 	if !exists {
 		failCount.Add(1)
@@ -211,12 +223,13 @@ func TestGetOrEmpty(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := getOrEmpty(tt.arr, tt.idx)
-			if got != tt.want {
-				t.Errorf("getOrEmpty(%v, %d) = %q, want %q", tt.arr, tt.idx, got, tt.want)
+
+			got := getOrEmpty(testCase.arr, testCase.idx)
+			if got != testCase.want {
+				t.Errorf("getOrEmpty(%v, %d) = %q, want %q", testCase.arr, testCase.idx, got, testCase.want)
 			}
 		})
 	}
@@ -226,6 +239,8 @@ func TestGetOrEmpty(t *testing.T) {
 // This verifies the function handles nil without panicking.
 // Actual C memory operations are tested through integration tests.
 func TestFreeStringsNilSafe(t *testing.T) {
+	t.Parallel()
+
 	t.Run("handles nil in variadic args", func(t *testing.T) {
 		t.Parallel()
 		// Should not panic when called with no args.
@@ -240,20 +255,28 @@ func TestFreeStringsNilSafe(t *testing.T) {
 }
 
 // TestInstanceMapThreadSafety verifies the instances map is protected by mutex.
+// Note: Cannot use t.Parallel() as it modifies global instances state.
+//
+//nolint:paralleltest // Global state mutation test, must run serially.
 func TestInstanceMapThreadSafety(t *testing.T) {
 	const numGoroutines = 20
-	var wg sync.WaitGroup
+
+	var waitGroup sync.WaitGroup
+
 	handles := make([]unsafe.Pointer, numGoroutines)
 
 	// Create multiple handles concurrently.
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
+	for index := range numGoroutines {
+		waitGroup.Add(1)
+
 		go func(idx int) {
-			defer wg.Done()
+			defer waitGroup.Done()
+
 			handles[idx] = KagomeInit()
-		}(i)
+		}(index)
 	}
-	wg.Wait()
+
+	waitGroup.Wait()
 
 	// Verify all handles were created.
 	for i, h := range handles {
@@ -263,21 +286,26 @@ func TestInstanceMapThreadSafety(t *testing.T) {
 	}
 
 	// Destroy all handles concurrently.
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
+	for index := range numGoroutines {
+		waitGroup.Add(1)
+
 		go func(idx int) {
-			defer wg.Done()
+			defer waitGroup.Done()
+
 			if handles[idx] != nil {
 				KagomeDestroy(handles[idx])
 			}
-		}(i)
+		}(index)
 	}
-	wg.Wait()
+
+	waitGroup.Wait()
 
 	// Verify all handles were removed.
-	mu.Lock()
+	instanceMutex.Lock()
+
 	mapSize := len(instances)
-	mu.Unlock()
+
+	instanceMutex.Unlock()
 
 	if mapSize != 0 {
 		t.Errorf("instances map not empty after cleanup: %d entries remain", mapSize)
