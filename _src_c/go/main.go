@@ -380,4 +380,42 @@ func EchoFree(p *C.char) {
 	}
 }
 
+// ------------------------------------------------------------------
+// Test Helpers (exported for testing)
+// ------------------------------------------------------------------
+
+// testTokenizeString is a test helper that tokenizes a Go string.
+// It handles the C string conversion internally and returns the token count.
+func testTokenizeString(handle unsafe.Pointer, text string) int {
+	if handle == nil || text == "" {
+		return 0
+	}
+
+	cStr := C.CString(text)
+	defer C.free(unsafe.Pointer(cStr))
+
+	arr := KagomeTokenizeStruct(handle, cStr)
+	if arr == nil {
+		return 0
+	}
+
+	count := int(arr.length)
+	KagomeFreeTokenArray(arr)
+
+	return count
+}
+
+// testHandleExists checks if a handle is still in the instances map.
+func testHandleExists(handle unsafe.Pointer) bool {
+	if handle == nil {
+		return false
+	}
+
+	instanceMutex.Lock()
+	_, exists := instances[handle]
+	instanceMutex.Unlock()
+
+	return exists
+}
+
 func main() {}
