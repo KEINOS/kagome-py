@@ -77,6 +77,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../build
+          go test -v ./...
           go build -buildmode=c-archive -o ../build/libkagome.a ./main.go
           echo "=== Build output ==="
           ls -la ../build/
