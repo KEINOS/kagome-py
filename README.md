@@ -90,7 +90,7 @@ if __name__ == "__main__":
 - OS:
   - macOS (x86_64, Arm64)
   - Linux (x86_64, Arm64) + `glibc` (`manylinux`. No support for `musl`)
-  - Windows (x86_64, Arm64)
+  - Windows (x86_64)
 
 > [!IMPORTANT]
 > Alpine Linux is not supported due to `musl` limitations.
