@@ -94,8 +94,7 @@ if __name__ == "__main__":
 
 > [!IMPORTANT]
 > Alpine Linux is not supported due to `musl` limitations.
-> However, we provide `distroless`-based Dockerfiles for `libkagome` in the `docker/` directory.
-> If you need to run on Alpine Linux or other `musl`-based systems, please consider using those Docker images.
+> For alternative approaches, see the [Dockerfile](./Dockerfile) and [docker-compose.yml](./docker-compose.yml) for development environments.
 
 ## Contributing
 
