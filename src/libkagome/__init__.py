@@ -9,7 +9,13 @@ Usage:
     words = kagome.wakati("すもももももももものうち")
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from libkagome._wrapper import Kagome, Token
 
 __all__ = ["Kagome", "Token"]
-__version__ = "2.10.3"
+
+try:
+    __version__ = version("kagome-py")
+except PackageNotFoundError:
+    __version__ = "0.0.0-dev"
