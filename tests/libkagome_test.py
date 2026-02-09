@@ -1,8 +1,20 @@
+import io
 import sys
 from libkagome import Kagome
 
 
+def _ensure_utf8_stdout() -> None:
+    """Reconfigure stdout to UTF-8 so Japanese text prints on Windows (cp1252)."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    elif sys.stdout.encoding != "utf-8":
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+
+
 def main() -> int:
+    _ensure_utf8_stdout()
     kagome = Kagome()
 
     text = "すもももももももものうち"
