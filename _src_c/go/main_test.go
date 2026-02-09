@@ -6,25 +6,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"unsafe"
+
+	"github.com/stretchr/testify/require"
 )
-
-// assertBool is a test helper for boolean assertions.
-func assertBool(t *testing.T, got, want bool, msgFmt string, args ...any) {
-	t.Helper()
-
-	if got != want {
-		t.Errorf(msgFmt, append(args, got, want)...)
-	}
-}
-
-// assertNotNil is a test helper for non-nil assertions.
-func assertNotNil(t *testing.T, got any, msg string) {
-	t.Helper()
-
-	if got == nil {
-		t.Errorf("%s: got nil, want non-nil", msg)
-	}
-}
 
 // TestWouldOverflowTokenAllocation tests the overflow detection logic.
 func TestWouldOverflowTokenAllocation(t *testing.T) {
@@ -62,13 +46,12 @@ func TestWouldOverflowTokenAllocation(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := wouldOverflowTokenAllocation(tt.n)
-			assertBool(t, got, tt.wantFail,
-				"wouldOverflowTokenAllocation(%d) = %v, want %v")
+			got := wouldOverflowTokenAllocation(testCase.n)
+			require.Equal(t, testCase.wantFail, got)
 		})
 	}
 }
@@ -78,7 +61,7 @@ func TestKagomeInit(t *testing.T) {
 	t.Parallel()
 
 	handle := KagomeInit()
-	assertNotNil(t, handle, "KagomeInit")
+	require.NotNil(t, handle, "KagomeInit should return non-nil handle")
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
 	// Verify handle was stored in instances map.
@@ -88,9 +71,7 @@ func TestKagomeInit(t *testing.T) {
 
 	instanceMutex.Unlock()
 
-	if !exists {
-		t.Error("Handle not found in instances map")
-	}
+	require.True(t, exists, "Handle should be found in instances map")
 }
 
 // TestKagomeDestroy tests tokenizer cleanup.
@@ -101,7 +82,7 @@ func TestKagomeDestroy(t *testing.T) {
 		t.Parallel()
 
 		handle := KagomeInit()
-		assertNotNil(t, handle, "KagomeInit")
+		require.NotNil(t, handle, "KagomeInit should return non-nil handle")
 
 		KagomeDestroy(handle)
 
@@ -112,15 +93,13 @@ func TestKagomeDestroy(t *testing.T) {
 
 		instanceMutex.Unlock()
 
-		if exists {
-			t.Error("Handle still exists in instances map after destroy")
-		}
+		require.False(t, exists, "Handle should be removed from instances map after destroy")
 	})
 
 	t.Run("nil handle is safe", func(t *testing.T) {
 		t.Parallel()
 		// Should not panic.
-		KagomeDestroy(nil)
+		require.NotPanics(t, func() { KagomeDestroy(nil) })
 	})
 }
 
@@ -131,7 +110,7 @@ func TestKagomeTokenizeConcurrent(t *testing.T) {
 	t.Parallel()
 
 	handle := KagomeInit()
-	assertNotNil(t, handle, "KagomeInit")
+	require.NotNil(t, handle, "KagomeInit should return non-nil handle")
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
 	const (
@@ -160,9 +139,7 @@ func TestKagomeTokenizeConcurrent(t *testing.T) {
 
 	waitGroup.Wait()
 
-	if count := failCount.Load(); count > 0 {
-		t.Errorf("Got %d failures during concurrent tokenization", count)
-	}
+	require.Zero(t, failCount.Load(), "No concurrent tokenization failures expected")
 }
 
 // testTokenizeCall verifies handle validity in concurrent context.
@@ -228,9 +205,7 @@ func TestGetOrEmpty(t *testing.T) {
 			t.Parallel()
 
 			got := getOrEmpty(testCase.arr, testCase.idx)
-			if got != testCase.want {
-				t.Errorf("getOrEmpty(%v, %d) = %q, want %q", testCase.arr, testCase.idx, got, testCase.want)
-			}
+			require.Equal(t, testCase.want, got)
 		})
 	}
 }
@@ -244,13 +219,7 @@ func TestFreeStringsNilSafe(t *testing.T) {
 	t.Run("handles nil in variadic args", func(t *testing.T) {
 		t.Parallel()
 		// Should not panic when called with no args.
-		defer func() {
-			if r := recover(); r != nil {
-				t.Errorf("freeStrings panicked: %v", r)
-			}
-		}()
-
-		freeStrings()
+		require.NotPanics(t, func() { freeStrings() })
 	})
 }
 
@@ -280,9 +249,7 @@ func TestInstanceMapThreadSafety(t *testing.T) {
 
 	// Verify all handles were created.
 	for i, h := range handles {
-		if h == nil {
-			t.Errorf("Handle %d is nil", i)
-		}
+		require.NotNil(t, h, "Handle %d should not be nil", i)
 	}
 
 	// Destroy all handles concurrently.
@@ -307,7 +274,5 @@ func TestInstanceMapThreadSafety(t *testing.T) {
 
 	instanceMutex.Unlock()
 
-	if mapSize != 0 {
-		t.Errorf("instances map not empty after cleanup: %d entries remain", mapSize)
-	}
+	require.Zero(t, mapSize, "instances map should be empty after cleanup")
 }
