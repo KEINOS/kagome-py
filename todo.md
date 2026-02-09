@@ -1,10 +1,20 @@
 # TODO & Issues
 
-Issues and improvements found during code review (2026-02-09).
+Issues, improvements, and testing tasks for kagome-py.
 
-## Priority Summary for v2.10.3 Initial Release
+## Status Summary
 
-### MUST FIX BEFORE RELEASE - ALL COMPLETE! ✓
+### v2.10.3 Release - READY [COMPLETE]
+All MUST FIX items done. Release is unblocked.
+
+### Testing & Robustness - v2.1+ [NEW]
+Comprehensive edge case, niche, and critical tests organized by language.
+
+---
+
+## v2.10.3 Release Status
+
+### MUST FIX BEFORE RELEASE - ALL COMPLETE!
 
 1. ~~Fix `macos-12` → `macos-15-intel` in publish.yml (#1)~~ [DONE - c9ea815]
 2. ~~Single-source version (remove duplication #2)~~ [DONE - 1ddddf4]
@@ -12,221 +22,182 @@ Issues and improvements found during code review (2026-02-09).
 4. ~~Add Go tests to publish.yml (#4)~~ [DONE - 1ef083f]
 5. ~~Fix Windows Arm64 claim in README (#18)~~ [DONE - f338df5]
 
-### SHOULD CONSIDER (5 items)
-
-- Verify macOS deployment target (#7)
-- Document thread-safety (#9)
-- Add `wakati()` test (#11)
-- Add `-pthread` on Linux (#15)
-- Python version matrix in CI (#6)
-
-### DEFER TO v2.1+ (9 items)
-
-- Refactor build steps into reusable workflow (#4)
-- Context manager support (#8)
-- Migrate to pytest (#12)
-- Edge-case tests (#13)
-- And 5 nice-to-haves (#21-24)
-
 ---
 
-## Critical / Bugs
+## Testing & Robustness for v2.1+ (NEW)
 
-### 1. publish.yml still uses deprecated `macos-12` runner [BLOCKING]
+Comprehensive test coverage organized by language: Go first, then Python.
 
-[publish.yml](.github/workflows/publish.yml) line 33 still has `os: macos-12`, which was already fixed in `build-and-test.yml` → `macos-15-intel`. The publish workflow will hang indefinitely on release.
+### GO TESTS: Edge Cases & Robustness
 
-**File:** `.github/workflows/publish.yml`
-**Fix:** Change `macos-12` → `macos-15-intel` (same fix applied to `build-and-test.yml`)
-**Priority:** CRITICAL - Must fix before first release
-
-### 2. Version is duplicated in two files [IMPORTANT]
-
-`__version__` is defined in both `pyproject.toml` and `src/libkagome/__init__.py`. They can easily drift.
-
-**Files:** `pyproject.toml`, `src/libkagome/__init__.py`
-**Fix:** Use `importlib.metadata.version("kagome-py")` in `__init__.py` to read from installed metadata
-**Priority:** HIGH - Maintenance issue, should fix before first release
-
-### 3. `Token` class lacks `__eq__` and `__repr__` [SHOULD FIX]
-
-`Token.__str__` exists but `__eq__` and `__repr__` are missing. This makes testing and debugging harder.
-
-**File:** `src/libkagome/_wrapper.py`
-**Fix:** Use `@dataclass(frozen=True)` or add `__eq__`, `__hash__`, and `__repr__` methods
-**Priority:** MEDIUM - Code quality and testing, should fix for initial release
-
----
-
-## CI/CD
-
-### 4. Build steps are duplicated between `build-and-test.yml` and `publish.yml` [REFACTOR]
-
-The two workflows have near-identical build steps. Any fix to one must be manually applied to the other.
-
-**Fix:** Extract shared build steps into a reusable workflow (`workflow_call`) or a composite action
-**Priority:** MEDIUM - Refactoring, can defer to future (but should do to prevent drift)
-
-### 5. Go tests are skipped in `publish.yml` [SHOULD FIX]
-
-`build-and-test.yml` runs `go test -v ./...` but `publish.yml` skips it. A release could be published from untested Go code.
-
-**File:** `.github/workflows/publish.yml`
-**Fix:** Add `go test -v ./...` step, or extract into reusable workflow (see #4)
-**Priority:** HIGH - Ensure released code is tested
-
-### 6. No Python version matrix in CI [ENHANCEMENT]
-
-CI only tests against Python 3.12, but `pyproject.toml` declares 3.10–3.13 support.
-
-**Fix:** Add test matrix for Python 3.10/3.11/3.12/3.13
-**Priority:** MEDIUM - Testing, important for multi-version support
-
-### 7. `wheel_plat` tag `macosx_10_13_x86_64` may be too low [VERIFY]
-
-Wheel built on macOS 15 but tagged as `macosx_10_13`. Deployment target may be incompatible.
-
-**Fix:** Verify actual minimum macOS version requirement, or bump to `macosx_13_0_x86_64`
-**Priority:** MEDIUM - May cause runtime failures on older macOS
-
----
-
-## Python Code
-
-### 8. `Kagome` does not support context manager protocol [ENHANCEMENT]
-
-Users must rely on `__del__` for cleanup. A context manager would give deterministic resource cleanup.
-
-**File:** `src/libkagome/_wrapper.py`
-**Fix:** Add `__enter__` / `__exit__` methods
-**Priority:** LOW - Nice-to-have, can defer to v2.1.0
-
-### 9. `Kagome` is not thread-safe on the Python side [DOCUMENT]
-
-Go side is thread-safe but Python calls aren't protected. GIL masks this in CPython, but it's fragile.
-
-**File:** `src/libkagome/_wrapper.py`
-**Fix:** Document thread-safety guarantees, or add `threading.Lock` around FFI calls
-**Priority:** MEDIUM - Should at least document current behavior
-
-### 10. Module-level docstring placement [SHOULD FIX - EASY]
-
-Module docstring in `_wrapper.py` is **after** imports, won't be recognized as `__doc__`.
-
-**File:** `src/libkagome/_wrapper.py`
-**Fix:** Move docstring before `from __future__` import
-**Priority:** LOW - Code quality, easy fix
-
-### 11. `wakati()` test coverage missing [SHOULD ADD]
-
-Test script only covers `tokenize()`, not `wakati()`.
-
-**File:** `tests/libkagome_test.py`
-**Fix:** Add `wakati()` test cases
-**Priority:** MEDIUM - Test coverage
-
----
-
-## Testing
-
-### 12. Test script is not using a proper test framework [REFACTOR]
-
-Hand-rolled test script comparing string representations. Fragile and no `pytest` integration.
-
-**Fix:** Migrate to `pytest` with proper assertions
-**Priority:** MEDIUM - Better testing infrastructure for future maintenance
-**Benefit:** Per-test granularity, coverage reporting, CI integration
-
-### 13. No edge-case tests [ENHANCEMENT]
-
-No tests for empty strings, ASCII, very long input, Unicode edge cases, multiple instances, etc.
-
-**Fix:** Add edge-case test suite
-**Priority:** LOW - Can defer to future maintenance
-
-### 14. Go concurrent test doesn't test C interop [KNOWN LIMITATION]
-
-`TestKagomeTokenizeConcurrent` only checks map access, not actual tokenization.
-
+#### G1. Go: Edge Cases - Empty & Boundary Inputs
 **File:** `_src_c/go/main_test.go`
-**Fix:** Document or defer (requires integration test infrastructure)
-**Priority:** LOW - Already documented in code
+
+- Test empty string input: `KagomeTokenizeStruct(handle, "")`
+- Test single character: `KagomeTokenizeStruct(handle, "a")`
+- Test very long string (100KB+)
+- Test max int boundaries for token counts
+- Test null pointer handling
+
+**Priority:** HIGH - Foundation for robustness
+
+#### G2. Go: Unicode Edge Cases
+**File:** `_src_c/go/main_test.go`
+
+- Test ASCII-only input: `"hello world"`
+- Test emoji sequences: `"👍🎉"`
+- Test mixed scripts: `"Hello こんにちは 你好"`
+- Test surrogate pairs and combining characters
+- Test RTL text: `"العربية"`, `"עברית"`
+- Test zero-width characters
+
+**Priority:** HIGH - Japanese NLP must handle Unicode correctly
+
+#### G3. Go: Memory & Allocation Critical Cases
+**File:** `_src_c/go/main_test.go`
+
+- Test large token arrays (1000+ tokens per input)
+- Test repeated allocation/deallocation cycles (stress test)
+- Test memory cleanup on error paths
+- Test string field allocation with unicode characters (multi-byte)
+
+**Priority:** CRITICAL - Memory leaks would be fatal
+
+#### G4. Go: Concurrency Edge Cases
+**File:** `_src_c/go/main_test.go`
+
+- Test high concurrency (1000+ goroutines)
+- Test concurrent initialization/destruction of instances
+- Test concurrent access to same instance (thread safety verification)
+- Test handles persisting across concurrent operations
+
+**Priority:** MEDIUM - Current test only checks map access
+
+#### G5. Go: Error Recovery & State Integrity
+**File:** `_src_c/go/main_test.go`
+
+- Test tokenization after failed operations
+- Test instance reuse after errors
+- Test handle reuse patterns
+- Test cleanup of partially-allocated tokens
+
+**Priority:** MEDIUM - Ensures state consistency
 
 ---
 
-## Build / Packaging
+### PYTHON TESTS: Edge Cases & Robustness
 
-### 15. `setup.py` sdist build doesn't pass `-pthread` on Linux [SHOULD FIX]
+#### P1. Python: Edge Cases - Empty & Boundary Inputs
+**File:** `tests/libkagome_test.py` (migrate to pytest)
 
-Missing `-pthread` for Linux. Go runtime requires pthreads. May work by accident but not guaranteed.
+- Test empty string: `kagome.tokenize("")`
+- Test single character: `kagome.tokenize("a")`
+- Test very long text (100KB+)
+- Test whitespace-only: `kagome.tokenize("   \n\t  ")`
+- Test single ASCII character
 
-**Files:** `setup.py`, `.github/workflows/build-and-test.yml`
-**Fix:** Add `-lpthread` (or `-pthread`) to Linux `cc` command
-**Priority:** HIGH - Potential runtime failure on some Linux systems
+**Priority:** HIGH - Basic input validation
 
-### 16. No `.gitkeep` verification [MINOR]
+#### P2. Python: Unicode Edge Cases
+**File:** `tests/libkagome_test.py`
 
-`.gitignore` references `.gitkeep` files but no CI verification they exist.
+- Test ASCII input: `kagome.tokenize("hello world")`
+- Test emoji: `kagome.tokenize("👍 Great! 🎉")`
+- Test mixed scripts: `kagome.tokenize("English 日本語 中文 العربية")`
+- Test combining diacritics: `kagome.tokenize("café naïve")`
+- Test surrogate pairs
+- Test RTL text
 
-**Priority:** LOW - Cosmetic
+**Priority:** HIGH - International text handling
 
-### 17. MANIFEST.in comment about build artifacts [DOCUMENTATION]
+#### P3. Python: wakati() Method Coverage
+**File:** `tests/libkagome_test.py`
 
-No comment explaining why `_src_c/build/` is excluded yet `libkagome.h` is generated during install.
+- Test empty string: `kagome.wakati("")`
+- Test single word: `kagome.wakati("テスト")`
+- Test sentence breakdown: `kagome.wakati("今日は天気です")`
+- Test ASCII: `kagome.wakati("hello world")`
+- Test mixed content
+- Verify wakati vs tokenize consistency
 
-**File:** `MANIFEST.in`
-**Fix:** Add clarifying comment
-**Priority:** LOW - Nice to document for future maintainers
+**Priority:** HIGH - wakati() currently untested
+
+#### P4. Python: Token Equality & Comparison Edge Cases
+**File:** `tests/libkagome_test.py`
+
+- Test Token.__eq__ with None: `token == None`
+- Test Token.__eq__ with string: `token == "すもも"`
+- Test Token.__eq__ with different Token instances from same text
+- Test Token.__eq__ with different texts
+- Test Token in list: `token in [token1, token2]`
+- Test repr() output parsing (self-consistency)
+
+**Priority:** MEDIUM - New __eq__/__repr__ methods need coverage
+
+#### P5. Python: Multiple Instances & Reuse
+**File:** `tests/libkagome_test.py`
+
+- Test creating multiple Kagome instances
+- Test sharing instances between threads (current behavior)
+- Test instance reuse after multiple tokenizations
+- Test memory behavior with many instances
+
+**Priority:** MEDIUM - Real-world usage pattern
+
+#### P6. Python: Version & Metadata
+**File:** `tests/libkagome_test.py`
+
+- Test `__version__` is defined and matches pyproject.toml
+- Test `__all__` exports Kagome and Token only
+- Test module docstring exists
+- Test public API accessibility
+
+**Priority:** LOW - Metadata integrity
 
 ---
 
-## Documentation
+## Deferred Items (v2.1+)
 
-### 18. README claims Windows Arm64 support [SHOULD FIX - EASY]
+### CI/CD & Refactoring
 
-README says "Windows (x86_64, Arm64)" but currently only x86_64 is supported.
+- Refactor CI/CD: Extract reusable build workflows
+- Python version matrix: Test 3.10/3.11/3.12/3.13
+- Migrate test framework: Hand-rolled → pytest
+- macOS deployment target verification
+- Add `-pthread` link flag on Linux
+- Thread-safety documentation
 
-**Files:** `README.md`, `DEVELOPMENT.md`
-**Fix:** Remove Arm64 from README Windows support claim
-**Priority:** HIGH - Documentation accuracy for initial release
+### Code Enhancements
 
-### 19. Stale documentation files [ALREADY DONE]
-
-Removed `IMPLEMENTATION_SUMMARY.md`, `CI_CD_FIXES.md`, `todo.md` in cleanup pass.
-Renamed `QUICKSTART_PIP.md` → `DEVELOPMENT.md`
-
-**Status:** COMPLETE
-
-### 20. `CONTRIBUTING.md` references non-existent `docker/` directory [ALREADY DONE]
-
-Removed reference to non-existent `docker/` directory.
-
-**Status:** COMPLETE
+- Context manager protocol (`with Kagome() as k:`)
+- Thread safety enforcement (locking if needed)
+- CLI entry point (`python -m libkagome`)
+- Type hints with `py.typed` marker
+- Explicit `__all__` exports
 
 ---
 
-## Nice-to-Have (v2.1+)
+## Implementation Notes
 
-### 21. Add `py.typed` marker
+**Testing Strategy:**
+1. Go tests establish correctness and safety at FFI boundary
+2. Python tests verify language binding behavior
+3. Edge cases discovered in one layer inform the other
+4. Priority order: CRITICAL → HIGH → MEDIUM → LOW
 
-For downstream type-checking support (`mypy`, `pyright`), add `src/libkagome/py.typed`.
+**Test Organization:**
+- Go: Add to `_src_c/go/main_test.go`
+- Python: Create `tests/test_libkagome.py` (pytest format)
+- Keep existing `tests/libkagome_test.py` as integration test
 
-**Priority:** LOW - Future improvement for type hint support
+**Running Tests:**
+```bash
+# Go
+cd _src_c/go && go test -v ./...
 
-### 22. Add `__all__` to `_wrapper.py`
+# Python (existing)
+PYTHONPATH=./src python3 tests/libkagome_test.py
 
-Make public API explicit. Currently everything is importable.
-
-**Priority:** LOW - Code organization, can defer
-
-### 23. Refactor `Token` to use `@dataclass`
-
-`Token` would get `__eq__`, `__repr__`, `__hash__` automatically (related to #3).
-
-**Priority:** LOW - Would fix #3 simultaneously
-
-### 24. Add CLI entry point
-
-`python -m libkagome "すもも..."` for quick testing.
-
-**Priority:** LOW - Nice-to-have for testing
+# Python (new pytest)
+pytest tests/test_libkagome.py -v
+```
