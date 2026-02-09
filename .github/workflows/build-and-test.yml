@@ -20,8 +20,8 @@ jobs:
             lib_ext: dylib
             wheel_plat: macosx_11_0_arm64
 
-          # macOS x86_64 (Intel)
-          - os: macos-12
+          # macOS x86_64 (Intel) — macos-13 is the last Intel runner
+          - os: macos-13
             goos: darwin
             goarch: amd64
             lib_ext: dylib
