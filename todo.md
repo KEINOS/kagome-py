@@ -4,14 +4,16 @@ Issues and improvements found during code review (2026-02-09).
 
 ## Priority Summary for v2.10.3 Initial Release
 
-### MUST FIX BEFORE RELEASE (5 items)
-1. Fix `macos-12` → `macos-15-intel` in publish.yml (#1)
+### MUST FIX BEFORE RELEASE (4 remaining items)
+
+1. ~~Fix `macos-12` → `macos-15-intel` in publish.yml (#1)~~ [DONE - c9ea815]
 2. Single-source version (remove duplication #2)
 3. Add `__eq__` / `__repr__` to Token (#3)
 4. Add Go tests to publish.yml (#5)
 5. Fix Windows Arm64 claim in README (#18)
 
 ### SHOULD CONSIDER (5 items)
+
 - Verify macOS deployment target (#7)
 - Document thread-safety (#9)
 - Add `wakati()` test (#11)
@@ -19,6 +21,7 @@ Issues and improvements found during code review (2026-02-09).
 - Python version matrix in CI (#6)
 
 ### DEFER TO v2.1+ (9 items)
+
 - Refactor build steps into reusable workflow (#4)
 - Context manager support (#8)
 - Migrate to pytest (#12)
