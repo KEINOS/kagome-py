@@ -34,14 +34,14 @@ jobs:
             goos: linux
             goarch: amd64
             lib_ext: so
-            wheel_plat: manylinux_2_17_x86_64
+            wheel_plat: manylinux_2_35_x86_64
 
           # Linux arm64
           - os: ubuntu-24.04-arm
             goos: linux
             goarch: arm64
             lib_ext: so
-            wheel_plat: manylinux_2_17_aarch64
+            wheel_plat: manylinux_2_35_aarch64
 
           # Windows x86_64
           - os: windows-latest
@@ -111,12 +111,24 @@ jobs:
           fi
 
       - name: Build wheel
-        run: python3 -m pip wheel . --no-deps --wheel-dir ./dist/
+        shell: bash
+        run: |
+          mkdir -p dist
+          python3 -m pip wheel . --no-deps --wheel-dir ./dist/
+          ls -la dist/ || echo "dist/ is empty"
 
       - name: Re-tag wheel with correct platform
+        shell: bash
         run: |
           pip install wheel
-          python3 -m wheel tags --platform-tag ${{ matrix.wheel_plat }} dist/*.whl --remove
+          WHL_FILE=$(ls dist/*.whl 2>/dev/null | head -1)
+          if [ -z "$WHL_FILE" ]; then
+            echo "ERROR: No .whl file found in dist/"
+            ls -la dist/
+            exit 1
+          fi
+          python3 -m wheel tags --platform-tag ${{ matrix.wheel_plat }} "$WHL_FILE" --remove
+          ls -la dist/
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4

@@ -10,6 +10,7 @@ Fixed multiple GitHub Actions CI/CD workflow issues. All steps have been tested 
 ## Issues Fixed
 
 ### 1. **Cache Restoration Error** ❌ → ✅
+
 - **Issue**: `go-version-file` was attempting to read `go.mod` from repo root, but it's at `_src_c/go/go.mod`
 - **Root Cause**: GitHub Actions setup-go tries to cache dependencies based on go.sum location
 - **Fix**: Use explicit `go-version: 1.25.7` instead of `go-version-file`
@@ -18,16 +19,19 @@ Fixed multiple GitHub Actions CI/CD workflow issues. All steps have been tested 
   - `5fcd02f` - Fix CI/CD: Use explicit go-version instead of go-version-file
 
 ### 2. **macOS Runner Version** ❌ → ✅
+
 - **Issue**: `macos-13` is no longer available (deprecated)
 - **Fix**: Use `macos-12` for Intel x86_64 builds
 - **Commit**: `67b28ac`
 
 ### 3. **Auditwheel Tool Availability** ❌ → ✅
+
 - **Issue**: `auditwheel` is Linux-only tool, but was being run on all platforms
 - **Fix**: Use `if: runner.os == 'Linux'` (not `matrix.goos == 'linux'`)
 - **Commit**: `6149609`
 
 ### 4. **Library Staging Path Issues** ❌ → ✅
+
 - **Issue**: Windows paths might not work with bash globbing after re-tagging
 - **Fix**:
   - Add explicit directory creation: `mkdir -p ../build`
@@ -39,6 +43,7 @@ Fixed multiple GitHub Actions CI/CD workflow issues. All steps have been tested 
   - `6149609` - Add better logging throughout
 
 ### 5. **Build Output Verification** ❌ → ✅
+
 - **Issue**: Silent failures when shared library doesn't exist
 - **Fix**: Add explicit error checking and directory verification
 - **Commit**: `77886d3`
@@ -59,6 +64,7 @@ All workflow steps have been tested locally in `/tmp/test-ci`:
 ## Workflow Changes Summary
 
 ### `build-and-test.yml`
+
 - Line 59: Changed `go-version-file` to explicit `go-version: 1.25.7`
 - Line 24: Changed `macos-13` to `macos-12`
 - Line 75: Added `shell: bash` to Build Go c-archive step
@@ -72,6 +78,7 @@ All workflow steps have been tested locally in `/tmp/test-ci`:
 - Line 146: Changed condition from `matrix.goos` to `runner.os`
 
 ### `publish.yml`
+
 - Line 59: Changed `go-version-file` to explicit `go-version: 1.25.7`
 - Line 76: Added `shell: bash` to Build Go c-archive step
 - Line 77: Added `mkdir -p ../build` directory creation
@@ -84,7 +91,7 @@ At the time of commit, GitHub Actions runners were under heavy load (all runs qu
 
 ## Commits Made
 
-```
+```shell
 6149609 Fix CI/CD: Correct platform conditions and add better logging
 3b3624a Add build debugging and explicit directory creation
 77886d3 Fix CI/CD: Add better error handling and debugging for library staging
