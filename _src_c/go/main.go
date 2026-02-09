@@ -381,11 +381,20 @@ func EchoFree(p *C.char) {
 }
 
 // ------------------------------------------------------------------
-// Test Helpers (exported for testing)
+// Test Helpers (in main.go due to Go cgo limitation)
 // ------------------------------------------------------------------
+//
+// NOTE: These functions are exclusively for testing and are placed in main.go
+// because Go does not support cgo imports in *_test.go files. Even though they
+// are helper functions, they cannot be moved to a separate test file without
+// breaking the cgo preamble requirement.
+//
+// These functions are only called from main_test.go and have no impact on
+// the production FFI API.
 
 // testTokenizeString is a test helper that tokenizes a Go string.
 // It handles the C string conversion internally and returns the token count.
+// This is only used by tests and is not part of the public API.
 func testTokenizeString(handle unsafe.Pointer, text string) int {
 	if handle == nil || text == "" {
 		return 0
@@ -406,6 +415,7 @@ func testTokenizeString(handle unsafe.Pointer, text string) int {
 }
 
 // testHandleExists checks if a handle is still in the instances map.
+// This is only used by tests and is not part of the public API.
 func testHandleExists(handle unsafe.Pointer) bool {
 	if handle == nil {
 		return false
