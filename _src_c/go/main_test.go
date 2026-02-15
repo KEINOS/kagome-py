@@ -69,6 +69,8 @@ func TestWouldOverflowTokenAllocation(t *testing.T) {
 }
 
 // TestKagomeInit tests tokenizer initialization.
+//
+//nolint:paralleltest // Uses global instances map; must run serially.
 func TestKagomeInit(t *testing.T) {
 	// No t.Parallel() - modifies global instances map.
 	handle := KagomeInit()
@@ -86,8 +88,11 @@ func TestKagomeInit(t *testing.T) {
 }
 
 // TestKagomeDestroy tests tokenizer cleanup.
+//
+//nolint:paralleltest // Uses global instances map; must run serially.
 func TestKagomeDestroy(t *testing.T) {
 	// No t.Parallel() - modifies global instances map.
+	//nolint:paralleltest // Parent test serializes subtests to protect global state.
 	t.Run("normal cleanup", func(t *testing.T) {
 		// No t.Parallel() - parent test handles serialization.
 		handle := KagomeInit()
@@ -105,16 +110,29 @@ func TestKagomeDestroy(t *testing.T) {
 		require.False(t, exists, "Handle should be removed from instances map after destroy")
 	})
 
+	//nolint:paralleltest // Parent test serializes subtests to protect global state.
 	t.Run("nil handle is safe", func(t *testing.T) {
 		// No t.Parallel() - parent test handles serialization.
 		// Should not panic.
 		require.NotPanics(t, func() { KagomeDestroy(nil) })
+	})
+
+	//nolint:paralleltest // Parent test serializes subtests to protect global state.
+	t.Run("double destroy is safe", func(t *testing.T) {
+		// No t.Parallel() - parent test handles serialization.
+		handle := KagomeInit()
+		require.NotNil(t, handle, "KagomeInit should return non-nil handle")
+
+		require.NotPanics(t, func() { KagomeDestroy(handle) })
+		require.NotPanics(t, func() { KagomeDestroy(handle) })
 	})
 }
 
 // TestKagomeTokenizeConcurrent tests thread safety with concurrent access.
 // This verifies that concurrent calls to KagomeTokenizeStruct don't cause
 // race conditions or crashes, which was a critical bug in early versions.
+//
+//nolint:paralleltest // Uses global instances map; must run serially.
 func TestKagomeTokenizeConcurrent(t *testing.T) {
 	// No t.Parallel() - calls KagomeInit/Destroy which modify global instances map.
 	handle := KagomeInit()
@@ -218,6 +236,47 @@ func TestGetOrEmpty(t *testing.T) {
 	}
 }
 
+// TestIsSafeCInt validates range checks for C.int conversions.
+func TestIsSafeCInt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value int
+		want  bool
+	}{
+		{
+			name:  "negative value",
+			value: -1,
+			want:  false,
+		},
+		{
+			name:  "zero",
+			value: 0,
+			want:  true,
+		},
+		{
+			name:  "max C int",
+			value: maxCInt,
+			want:  true,
+		},
+		{
+			name:  "beyond max C int",
+			value: maxCInt + 1,
+			want:  false,
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := isSafeCInt(testCase.value)
+			require.Equal(t, testCase.want, got)
+		})
+	}
+}
+
 // TestFreeStringsNilSafe tests that freeStrings safely handles nil pointers.
 // This verifies the function handles nil without panicking.
 // Actual C memory operations are tested through integration tests.
@@ -291,6 +350,8 @@ func TestInstanceMapThreadSafety(t *testing.T) {
 
 // TestG1_EmptyStringInput tests tokenization of empty string.
 func TestG1_EmptyStringInput(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -302,6 +363,8 @@ func TestG1_EmptyStringInput(t *testing.T) {
 
 // TestG1_SingleCharacter tests tokenization of single ASCII character.
 func TestG1_SingleCharacter(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -312,6 +375,8 @@ func TestG1_SingleCharacter(t *testing.T) {
 
 // TestG1_VeryLongString tests tokenization of 100KB+ text.
 func TestG1_VeryLongString(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -332,6 +397,8 @@ func TestG1_VeryLongString(t *testing.T) {
 
 // TestG1_ZeroTokenCount tests handling of input that produces zero tokens.
 func TestG1_ZeroTokenCount(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -342,6 +409,8 @@ func TestG1_ZeroTokenCount(t *testing.T) {
 
 // TestG1_NullPointerHandling tests null pointer safety.
 func TestG1_NullPointerHandling(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -357,6 +426,8 @@ func TestG1_NullPointerHandling(t *testing.T) {
 
 // TestG2_ASCIIOnlyInput tests ASCII-only text.
 func TestG2_ASCIIOnlyInput(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -367,6 +438,8 @@ func TestG2_ASCIIOnlyInput(t *testing.T) {
 
 // TestG2_EmojiSequences tests emoji handling.
 func TestG2_EmojiSequences(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -377,17 +450,20 @@ func TestG2_EmojiSequences(t *testing.T) {
 
 // TestG2_MixedScripts tests mixed language scripts.
 func TestG2_MixedScripts(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
-	//nolint:gosmopolitan // Testing international script handling.
 	count := testTokenizeString(handle, "Hello こんにちは 你好")
 	require.GreaterOrEqual(t, count, 0, "Should handle mixed scripts safely")
 }
 
 // TestG2_CombiningCharacters tests combining diacritics.
 func TestG2_CombiningCharacters(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -398,6 +474,8 @@ func TestG2_CombiningCharacters(t *testing.T) {
 
 // TestG2_RTLText tests right-to-left text.
 func TestG2_RTLText(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -412,6 +490,8 @@ func TestG2_RTLText(t *testing.T) {
 
 // TestG3_LargeTokenArrays tests handling of 1000+ tokens.
 func TestG3_LargeTokenArrays(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -432,6 +512,8 @@ func TestG3_LargeTokenArrays(t *testing.T) {
 
 // TestG3_RepeatedAllocDealloc tests allocation/deallocation cycles.
 func TestG3_RepeatedAllocDealloc(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -445,6 +527,8 @@ func TestG3_RepeatedAllocDealloc(t *testing.T) {
 
 // TestG3_ErrorPathCleanup tests cleanup on error conditions.
 func TestG3_ErrorPathCleanup(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -460,22 +544,25 @@ func TestG3_ErrorPathCleanup(t *testing.T) {
 
 // TestG3_UnicodeStringAllocation tests multi-byte string allocation.
 func TestG3_UnicodeStringAllocation(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
-	// Multi-byte UTF-8 characters.
-	//nolint:gosmopolitan // Testing multi-byte character handling.
+	// Multi-byte UTF-8 characters
 	count := testTokenizeString(handle, "日本語の複雑な文字列")
 	require.Positive(t, count, "Should allocate multi-byte strings correctly")
 }
 
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // G4: Concurrency Edge Cases
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 // TestG4_HighConcurrency tests 1000+ goroutines.
 func TestG4_HighConcurrency(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -483,14 +570,12 @@ func TestG4_HighConcurrency(t *testing.T) {
 	const numGoroutines = 1000
 
 	var (
-		wg           sync.WaitGroup
+		waitGroup    sync.WaitGroup
 		successCount atomic.Int32
 	)
 
 	for range numGoroutines {
-
-		wg.Go(func() {
-
+		waitGroup.Go(func() {
 			count := testTokenizeString(handle, "テスト")
 			if count >= 0 {
 				successCount.Add(1)
@@ -498,24 +583,24 @@ func TestG4_HighConcurrency(t *testing.T) {
 		})
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	require.Equal(t, int32(numGoroutines), successCount.Load(), "All high-concurrency calls should succeed")
 }
 
 // TestG4_ConcurrentInitDestroy tests concurrent handle lifecycle.
 func TestG4_ConcurrentInitDestroy(t *testing.T) {
+	t.Parallel()
+
 	const numOps = 100
 
 	var (
-		wg           sync.WaitGroup
+		waitGroup    sync.WaitGroup
 		successCount atomic.Int32
 	)
 
 	for range numOps {
-
-		wg.Go(func() {
-
+		waitGroup.Go(func() {
 			handle := KagomeInit()
 			if handle == nil {
 				return
@@ -531,12 +616,14 @@ func TestG4_ConcurrentInitDestroy(t *testing.T) {
 		})
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	require.Positive(t, successCount.Load(), "Some concurrent operations should succeed")
 }
 
 // TestG4_ThreadSafetyOfSharedInstance tests concurrent access to same instance.
+//
+//nolint:paralleltest // Uses global instances map; must run serially.
 func TestG4_ThreadSafetyOfSharedInstance(t *testing.T) {
 	// Note: Cannot use t.Parallel() as it modifies global state.
 	handle := KagomeInit()
@@ -549,14 +636,12 @@ func TestG4_ThreadSafetyOfSharedInstance(t *testing.T) {
 	)
 
 	var (
-		wg           sync.WaitGroup
+		waitGroup    sync.WaitGroup
 		successCount atomic.Int32
 	)
 
 	for range numGoroutines {
-
-		wg.Go(func() {
-
+		waitGroup.Go(func() {
 			for range iterations {
 				count := testTokenizeString(handle, "並行処理")
 				if count >= 0 {
@@ -566,7 +651,7 @@ func TestG4_ThreadSafetyOfSharedInstance(t *testing.T) {
 		})
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	expected := int32(numGoroutines * iterations)
 	require.Equal(t, expected, successCount.Load(), "All concurrent operations should succeed")
@@ -574,6 +659,8 @@ func TestG4_ThreadSafetyOfSharedInstance(t *testing.T) {
 
 // TestG4_HandlePersistence tests handles persisting across operations.
 func TestG4_HandlePersistence(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -581,14 +668,12 @@ func TestG4_HandlePersistence(t *testing.T) {
 	const iterations = 100
 
 	var (
-		wg           sync.WaitGroup
+		waitGroup    sync.WaitGroup
 		successCount atomic.Int32
 	)
 
 	for range iterations {
-
-		wg.Go(func() {
-
+		waitGroup.Go(func() {
 			// Verify handle still exists and works.
 			if !testHandleExists(handle) {
 				return
@@ -601,17 +686,19 @@ func TestG4_HandlePersistence(t *testing.T) {
 		})
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	require.Equal(t, int32(iterations), successCount.Load(), "Handle should persist correctly")
 }
 
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // G5: Error Recovery & State Integrity
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 // TestG5_TokenizationAfterFailed tests tokenization after failed operations.
 func TestG5_TokenizationAfterFailed(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -627,24 +714,28 @@ func TestG5_TokenizationAfterFailed(t *testing.T) {
 
 // TestG5_InstanceReuseAfterErrors tests instance reuse after error conditions.
 func TestG5_InstanceReuseAfterErrors(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
 
 	// Multiple error-recovery cycles.
-	for i := range 10 {
+	for iteration := range 10 {
 		// Error: NULL handle.
 		count := testTokenizeString(nil, "test")
 		require.Equal(t, 0, count)
 
 		// Recovery: normal operation.
 		count = testTokenizeString(handle, "再利用テスト")
-		require.Positive(t, count, "Iteration %d: should recover", i)
+		require.Positive(t, count, "Iteration %d: should recover", iteration)
 	}
 }
 
 // TestG5_HandleReusePatterns tests various handle reuse patterns.
 func TestG5_HandleReusePatterns(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })
@@ -667,6 +758,8 @@ func TestG5_HandleReusePatterns(t *testing.T) {
 
 // TestG5_PartialAllocationCleanup tests cleanup of partially allocated tokens.
 func TestG5_PartialAllocationCleanup(t *testing.T) {
+	t.Parallel()
+
 	handle := KagomeInit()
 	require.NotNil(t, handle)
 	t.Cleanup(func() { KagomeDestroy(handle) })

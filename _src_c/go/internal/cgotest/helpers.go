@@ -38,46 +38,43 @@ import "C"
 import "unsafe"
 
 // TokenizeString tokenizes a Go string using the Kagome tokenizer.
+//
+//nolint:nlreturn // Guarded flow keeps CGO cleanup simple.
 func TokenizeString(handle unsafe.Pointer, text string) int {
-	if handle == nil || text == "" {
-		return 0
+	count := 0
+	if handle != nil && text != "" {
+		cStr := C.CString(text)
+		if cStr != nil {
+			defer C.free(unsafe.Pointer(cStr))
+
+			arr := C.KagomeTokenizeStruct(handle, cStr)
+			if arr != nil {
+				count = int(arr.length)
+				C.KagomeFreeTokenArray(arr)
+			}
+		}
 	}
-
-	cStr := C.CString(text)
-
-	defer C.free(unsafe.Pointer(cStr))
-
-	arr := C.KagomeTokenizeStruct(handle, cStr)
-
-	if arr == nil {
-		return 0
-	}
-
-	count := int(arr.length)
-	C.KagomeFreeTokenArray(arr)
 
 	return count
 }
 
 // HandleExists checks if a handle is still valid.
+//
+//nolint:nlreturn // Guarded flow keeps CGO cleanup simple.
 func HandleExists(handle unsafe.Pointer) bool {
-	if handle == nil {
-		return false
+	exists := false
+	if handle != nil {
+		cStr := C.CString("a")
+		if cStr != nil {
+			defer C.free(unsafe.Pointer(cStr))
+
+			arr := C.KagomeTokenizeStruct(handle, cStr)
+			if arr != nil {
+				C.KagomeFreeTokenArray(arr)
+				exists = true
+			}
+		}
 	}
 
-	cStr := C.CString("a")
-	if cStr == nil {
-		return false
-	}
-
-	defer C.free(unsafe.Pointer(cStr))
-
-	arr := C.KagomeTokenizeStruct(handle, cStr)
-
-	if arr == nil {
-		return false
-	}
-	C.KagomeFreeTokenArray(arr)
-
-	return true
+	return exists
 }

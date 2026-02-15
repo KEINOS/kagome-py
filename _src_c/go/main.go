@@ -9,9 +9,9 @@ package main
 #include <stdint.h>
 #include <stdlib.h>
 
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // C ABI structures
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 // Token represents one morphological token.
 // All strings are UTF-8, null-terminated, and allocated with malloc.
@@ -48,9 +48,9 @@ import (
 	"github.com/ikawaha/kagome/v2/tokenizer"
 )
 
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Constants for token feature indices
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 const (
 	posIndex0 = iota // POS hierarchy 0 (major class)
@@ -67,9 +67,11 @@ const (
 	pronunciationIndex = 8 // Pronunciation
 )
 
-// ------------------------------------------------------------------
+const maxCInt = int(^uint32(0) >> 1)
+
+// ----------------------------------------------------------------------------
 // Internal state management
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 // instances maps opaque C handles to Kagome tokenizers.
 //
@@ -85,9 +87,9 @@ var (
 	instances     = make(map[unsafe.Pointer]*tokenizer.Tokenizer)
 )
 
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Helper utilities
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 // getOrEmpty returns arr[index] if it exists, otherwise an empty string.
 // This avoids bounds checks at every call site.
@@ -113,6 +115,11 @@ func wouldOverflowTokenAllocation(count int) bool {
 	return C.size_t(count) > maxSafeTokens
 }
 
+// isSafeCInt checks if value can be safely converted to C.int.
+func isSafeCInt(value int) bool {
+	return value >= 0 && value <= maxCInt
+}
+
 // freeStrings safely frees multiple C strings.
 // Checks for nil before freeing (safe to pass nil pointers).
 func freeStrings(strs ...*C.char) {
@@ -123,9 +130,53 @@ func freeStrings(strs ...*C.char) {
 	}
 }
 
-// ------------------------------------------------------------------
+// getTokenizerForHandle returns the tokenizer instance for a handle.
+func getTokenizerForHandle(handle unsafe.Pointer) *tokenizer.Tokenizer {
+	instanceMutex.Lock()
+	defer instanceMutex.Unlock()
+
+	return instances[handle]
+}
+
+// allocateTokenArray allocates a TokenArray and optional token buffer.
+// Returns nils on allocation failure or unsafe count.
+func allocateTokenArray(count int) (*C.TokenArray, []C.Token) {
+	if wouldOverflowTokenAllocation(count) || !isSafeCInt(count) {
+		return nil, nil
+	}
+
+	//nolint:exhaustruct // C struct size calculation, fields not needed.
+	arr := (*C.TokenArray)(C.malloc(C.size_t(unsafe.Sizeof(C.TokenArray{}))))
+	if arr == nil {
+		return nil, nil
+	}
+
+	arr.length = C.int(count)
+
+	if count == 0 {
+		arr.tokens = nil
+
+		return arr, nil
+	}
+
+	//nolint:exhaustruct // C struct size calculation, fields not needed.
+	cTokens := (*C.Token)(C.malloc(
+		C.size_t(count) * C.size_t(unsafe.Sizeof(C.Token{})),
+	))
+	if cTokens == nil {
+		C.free(unsafe.Pointer(arr))
+
+		return nil, nil
+	}
+
+	arr.tokens = cTokens
+
+	return arr, unsafe.Slice(cTokens, count)
+}
+
+// ----------------------------------------------------------------------------
 // Exported C API
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 //export KagomeInit
 func KagomeInit() unsafe.Pointer {
@@ -159,8 +210,15 @@ func KagomeDestroy(handle unsafe.Pointer) {
 	}
 
 	instanceMutex.Lock()
-	delete(instances, handle)
+	_, exists := instances[handle]
+	if exists {
+		delete(instances, handle)
+	}
 	instanceMutex.Unlock()
+
+	if !exists {
+		return
+	}
 
 	// Free the dummy handle allocated in KagomeInit.
 	C.free(handle)
@@ -205,6 +263,10 @@ func (ts tokenStrings) allocationsFailed() bool {
 // Returns false if any string allocation failed, indicating cleanup is needed.
 func checkAndStoreToken(index int, slice []C.Token, tok *tokenizer.Token, strings tokenStrings) bool {
 	if strings.allocationsFailed() {
+		return false
+	}
+
+	if !isSafeCInt(tok.Start) || !isSafeCInt(tok.End) {
 		return false
 	}
 
@@ -254,77 +316,38 @@ func (ts tokenStrings) free() {
 	)
 }
 
+//nolint:funlen // cgo wrapper expands exported functions beyond funlen limits.
 //export KagomeTokenizeStruct
 func KagomeTokenizeStruct(handle unsafe.Pointer, input *C.char) *C.TokenArray {
 	if handle == nil || input == nil {
 		return nil
 	}
-
-	// Lock ONLY for map access.
-	instanceMutex.Lock()
-	tokenizer := instances[handle]
-	instanceMutex.Unlock() // early unlock after getting the instance
-
-	if tokenizer == nil {
+	tok := getTokenizerForHandle(handle)
+	if tok == nil {
 		return nil
 	}
-
 	text := C.GoString(input)
-	tokens := tokenizer.Tokenize(text)
+	tokens := tok.Tokenize(text)
 	count := len(tokens)
-
-	// Check for integer overflow in allocation.
-	if wouldOverflowTokenAllocation(count) {
-		return nil
-	}
-
-	// Allocate TokenArray (always owned by caller).
-	//nolint:exhaustruct // C struct size calculation, fields not needed.
-	arr := (*C.TokenArray)(C.malloc(C.size_t(unsafe.Sizeof(C.TokenArray{}))))
+	arr, slice := allocateTokenArray(count)
 	if arr == nil {
 		return nil
 	}
-
-	arr.length = C.int(count)
-
 	if count == 0 {
-		arr.tokens = nil
-
 		return arr
 	}
-
-	// Allocate contiguous Token array.
-	//nolint:exhaustruct // C struct size calculation, fields not needed.
-	cTokens := (*C.Token)(C.malloc(
-		C.size_t(count) * C.size_t(unsafe.Sizeof(C.Token{})),
-	))
-	if cTokens == nil {
-		C.free(unsafe.Pointer(arr))
-
-		return nil
-	}
-
-	slice := unsafe.Slice(cTokens, count)
-
 	for index, tok := range tokens {
 		strings := allocateTokenStrings(&tok)
-
 		if !checkAndStoreToken(index, slice, &tok, strings) {
 			// Free strings we just allocated for current token.
 			strings.free()
-
 			// Free all previously completed tokens.
 			cleanupTokens(slice, index)
-
-			C.free(unsafe.Pointer(cTokens))
+			C.free(unsafe.Pointer(arr.tokens))
 			C.free(unsafe.Pointer(arr))
-
 			return nil
 		}
 	}
-
-	arr.tokens = cTokens
-
 	return arr
 }
 
@@ -355,9 +378,9 @@ func KagomeFreeTokenArray(arr *C.TokenArray) {
 	C.free(unsafe.Pointer(arr))
 }
 
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Test utilities (wrapped as kagome_echo/kagome_echo_free)
-// ------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 // Echo copies a string and returns it.
 // Used for testing FFI setup (string passing, memory allocation).
@@ -377,9 +400,9 @@ func Echo(input *C.char) *C.char {
 // FFI users should call kagome_echo_free() from the C wrapper, not this directly.
 //
 //export EchoFree
-func EchoFree(p *C.char) {
-	if p != nil {
-		C.free(unsafe.Pointer(p))
+func EchoFree(ptrChar *C.char) {
+	if ptrChar != nil {
+		C.free(unsafe.Pointer(ptrChar))
 	}
 }
 
