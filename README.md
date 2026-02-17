@@ -2,10 +2,14 @@
 
 [![gopher_and_python_enjoying_kagome_patterned_pie](./.github/images/kagome-py-logo.png)](https://github.com/KEINOS/kagome-py)
 
-Python bindings for [kagome](https://github.com/ikawaha/kagome), a Japanese morphological analyzer.
+Python bindings for [kagome](https://github.com/ikawaha/kagome), a Japanese
+morphological analyzer.
 
 > [!NOTE]
-> This repository is a spin-off project from the [C shared library example of Kagome](https://github.com/ikawaha/kagome/tree/v2/_examples/clib) to **allow easy installation via `pip` and usage of `libkagome`** (the shared library) in Python.
+> This repository is a spin-off project from the
+> [C shared library example of Kagome](https://github.com/ikawaha/kagome/tree/v2/_examples/clib)
+> to **allow easy installation via `pip` and usage of `libkagome`** (the shared
+> library) in Python.
 
 ## Usage
 
@@ -30,6 +34,7 @@ class Kagome:
 
 ### Examples
 
+<!-- markdownlint-disable MD013 -->
 ```shellsession
 >>> from libkagome import Kagome
 >>> kagome = Kagome()
@@ -84,17 +89,20 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
+<!-- markdownlint-enable MD013 -->
+
 ## Supported OS and Architectures
 
 - Python: 3.10+
 - OS:
   - macOS (x86_64, Arm64)
-  - Linux (x86_64, Arm64) + `glibc` (`manylinux`. No support for `musl`)
+    - Linux (x86_64, Arm64) + `glibc` (`manylinux`. No support for `musl`)
   - Windows (x86_64)
 
 > [!IMPORTANT]
 > Alpine Linux is not supported due to `musl` limitations.
-> For alternative approaches, see the [Dockerfile](./Dockerfile) and [docker-compose.yml](./docker-compose.yml) for development environments.
+> For alternative approaches, see the [Dockerfile](./Dockerfile) and
+> [docker-compose.yml](./docker-compose.yml) for development environments.
 
 ## Contributing
 

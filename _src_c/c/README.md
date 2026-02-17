@@ -1,6 +1,8 @@
 # C Wrapper Layer
 
-The C wrapper provides a **stable, public API** for using Kagome from other languages via [FFI](https://en.wikipedia.org/wiki/Foreign_function_interface) (Foreign Function Interface).
+The C wrapper provides a **stable, public API** for using Kagome from other
+languages via [FFI](https://en.wikipedia.org/wiki/Foreign_function_interface)
+(Foreign Function Interface).
 
 ## What does it do?
 
@@ -18,11 +20,13 @@ The wrapper exposes these functions:
 - `kagome_echo()` — Echo a string (for testing FFI setup)
 - `kagome_echo_free()` — Free the echoed string
 
-All FFI users (Python, PHP, Rust, etc.) call these functions. They never call Go functions directly.
+All FFI users (Python, PHP, Rust, etc.) call these functions. They never call Go
+functions directly.
 
 ## Why is this needed?
 
-When Go builds a C library, it exports many internal symbols (runtime code, helper functions, etc.). This creates problems:
+When Go builds a C library, it exports many internal symbols (runtime code,
+helper functions, etc.). This creates problems:
 
 - FFI users don't know which symbols are safe to use
 - Internal symbols may change between Go versions

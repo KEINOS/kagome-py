@@ -1,402 +1,79 @@
-# Code Review: kagome-py Go Bindings
+# Code Review: kagome-py
 
-**Reviewers:** Code quality focus on contribution-friendliness, testability, and maintainability
-**Date:** 2026-02-15 (Updated from 2026-02-09)
-**Branch:** initial-implementation
-**Coverage:** 70.5% (52+ tests passing)
-**Status:** Production-ready, pending minor linting improvements
+**Date:** 2026-02-16
+**Scope:** Go FFI layer, C wrapper, Python wrapper, packaging, tests
+**Method:** Static review only (no tests or linters run)
+**Status:** Looks solid; a couple small gaps to tighten
 
 ---
 
 ## Executive Summary
 
-The codebase is **well-structured and generally high-quality**, with clear separation of concerns (FFI API, memory management, testing utilities). The test suite is comprehensive and covers edge cases thoroughly.
-
-**Key Strengths:**
-
-- ✅ Clean FFI boundary design with proper memory safety
-- ✅ Comprehensive test coverage (52+ tests, G1-G5 + unit tests)
-- ✅ Excellent documentation and inline comments
-- ✅ Safe nil-pointer handling throughout
-
-**Areas for Enhancement:**
-
-- 🔧 Refactor high-complexity cleanup function
-- 🔧 Suppress paralleltest linter for non-parallelizable tests
-- 🔧 Improve variable naming in long-scope loops
-- 🔧 Allow internal test packages in depguard config
-- 🔧 Minor style fixes (return line spacing)
+The codebase is clean and easy to follow. The Go FFI layer is careful about
+memory ownership and overflow checks, the C wrapper is minimal and stable, and
+the Python wrapper keeps the API ergonomic. Test coverage is broad across Go +
+Python, though one helper hides an empty-string path and the Python API could
+benefit from deterministic cleanup.
 
 ---
 
-## Architecture & Design
+## Strengths
 
-### ✅ Strengths
-
-**1. Clear FFI Boundary**
-
-```go
-// main.go exports clean C API
-//export KagomeInit
-//export KagomeDestroy
-//export KagomeTokenizeStruct
-//export KagomeFreeTokenArray
-```
-
-- All public FFI functions are clearly marked with `//export` comments
-- Single responsibility: each exported function has one clear purpose
-- Proper nil-safety checks at entry points
-
-**2. Memory Safety Pattern**
-
-- ✅ Opaque C handle (malloc'd pointer) prevents Go pointer escape violations
-- ✅ Early mutex unlock after map access reduces lock contention
-- ✅ Overflow detection before array allocation (prevents DOS)
-- ✅ Cleanup on partial allocation failures is comprehensive
-
-**3. Test Architecture**
-
-- ✅ Internal package `cgotest` isolates test helpers from main code
-- ✅ No code duplication between `main.go` and test files
-- ✅ Comprehensive edge case coverage: empty inputs, large data, unicode, concurrency
-
-### 🔧 Recommendations
-
-**1. Extract Depguard Configuration**
-**Issue:** `internal/cgotest` is imported in main_test.go but not in depguard allowlist
-**Impact:** Linting error, blocks automation
-
-**Solution:** Update `.golangci.yml` to allow internal test packages:
-
-```yaml
-depguard:
-  rules:
-    main:
-      allow:
-        - $gostd
-        - github.com/ikawaha/kagome/v2
-        - github.com/ikawaha/kagome-dict
-        - github.com/stretchr/testify
-        - github.com/KEINOS/kagome-py/libkagome/internal/cgotest  # Add this
-```
-
-**Why:** Makes the internal cgotest package discoverable and allows contributors to run linters without errors.
+- Clear FFI boundary with explicit ownership and safe nil handling
+- Defensive allocation checks and cleanup paths in Go
+- C wrapper keeps a stable, language-agnostic API surface
+- Python wrapper is readable and aligns with the C ABI layout
+- Tests cover lots of edge cases and unicode usage
 
 ---
 
-## Status Update: Recent Progress (2026-02-15)
+## Findings
 
-### ✅ Completed in commit 25ff03c
+### 1) Empty-string FFI path is not actually exercised
 
-1. **Added `//nolint:paralleltest` annotations** (25 test functions)
-   - Explicitly documents tests that intentionally modify global state
-   - Clears paralleltest linter warnings for non-parallelizable tests
-
-2. **Disabled `gosmopolitan` linter globally** (.golangci.yml)
-   - Tests intentionally use international characters for unicode testing
-   - Reduces noise in CI/CD output
-
-3. **Added `t.Parallel()` to parallelizable tests** (8 tests)
-   - Edge case tests (G1) that only create local handles now run in parallel
-   - Improves test execution speed
-
-4. **Added `//nolint:paralleltest` to nested subtests**
-   - Clarifies intent for parent-child test relationships
-   - Prevents race condition warnings in test hierarchy
-
-### ⚠️ Outstanding Issues
-
-| Issue | Status | Effort | Blocker |
-| :-- | :-- | :--: | :-- |
-| Extract KagomeTokenizeStruct error cleanup (funlen) | ❌ TODO | 20 min | CI/CD automation |
-| Fix nlreturn on main.go:393 | ❌ TODO | 5 min | No |
-| Add nonamedreturns suppression | ❌ TODO | 2 min | No |
-| Complete paralleltest annotations (~8 remaining) | ⚠️ Partial | 10 min | No |
-| Update to Go 1.22+ range syntax (intrange) | ❌ TODO | 5 min | No |
+**Where:** cgotest helper used by Go tests
+**What:** `TokenizeString` returns early for empty input, so the G1 empty-string
+test never calls into `KagomeTokenizeStruct`.
+**Why it matters:** It gives a false sense of coverage for the empty-input FFI
+path.
+**Fix:** Allow empty input in the helper or add a direct test that calls
+`KagomeTokenizeStruct` with `""`.
 
 ---
 
-## Code Quality Issues & Detailed Analysis
+### 2) No deterministic cleanup path in Python API
 
-### 1. High Cyclomatic Complexity (cyclop) - DEFERRED
-
-**File:** `internal/cgotest/helpers.go:101-166`
-**Function:** `CleanupAllocatedTokens()`
-**Issue:** Complexity = 15, max = 10
-
-**Current Code:**
-
-```go
-func CleanupAllocatedTokens(count int) {
-    if count <= 0 { return }
-
-    token := (*C.Token)(C.malloc(...))
-    if token == nil { return }
-    defer C.free(unsafe.Pointer(token))
-
-    // Allocate 10 strings
-    token.surface = C.CString("surface")
-    // ... 9 more
-
-    // Loop with conditional frees (5+ conditions)
-    for i := 0; i < count; i++ {
-        if token.surface != nil { C.free(...) }
-        token.surface = C.CString("surface")
-    }
-
-    // Final cleanup: 10 separate if statements
-    if token.surface != nil { C.free(...) }
-    if token.pos1 != nil { C.free(...) }
-    // ... 8 more
-}
-```
-
-**Root Cause:** Repetitive nil-checks for each token field (10 fields × 3 locations = 30+ checks)
-
-**Refactoring Solution:**
-
-Create a helper struct method to reduce complexity:
-
-```go
-// tokenStrings is a collection of C strings that need cleanup.
-// Reuse the existing tokenStrings type from main.go or create in cgotest.
-type tokenStrings struct {
-    surface, pos1, pos2, pos3, pos4       *C.char
-    conjType, conjForm, baseForm, reading *C.char
-    pronunciation                         *C.char
-}
-
-// freeAll frees all strings in one call - reduces 10 ifs to 1 call.
-func (ts *tokenStrings) freeAll() {
-    strs := []*C.char{
-        ts.surface, ts.pos1, ts.pos2, ts.pos3, ts.pos4,
-        ts.conjType, ts.conjForm, ts.baseForm, ts.reading,
-        ts.pronunciation,
-    }
-    for _, s := range strs {
-        if s != nil {
-            C.free(unsafe.Pointer(s))
-        }
-    }
-}
-
-// Refactored CleanupAllocatedTokens
-func CleanupAllocatedTokens(count int) {
-    if count <= 0 {
-        return
-    }
-
-    token := (*C.Token)(C.malloc(C.size_t(unsafe.Sizeof(C.Token{}))))
-    if token == nil {
-        return
-    }
-    defer C.free(unsafe.Pointer(token))
-
-    // Allocate all strings upfront
-    ts := tokenStrings{
-        surface:       C.CString("surface"),
-        pos1:          C.CString("pos1"),
-        pos2:          C.CString("pos2"),
-        pos3:          C.CString("pos3"),
-        pos4:          C.CString("pos4"),
-        conjType:      C.CString("conj_type"),
-        conjForm:      C.CString("conj_form"),
-        baseForm:      C.CString("base_form"),
-        reading:       C.CString("reading"),
-        pronunciation: C.CString("pronunciation"),
-    }
-    defer ts.freeAll()
-
-    // Exercise reallocation path
-    for range count {
-        if ts.surface != nil {
-            C.free(unsafe.Pointer(ts.surface))
-        }
-        ts.surface = C.CString("surface")
-    }
-}
-```
-
-**Benefits:**
-
-- ✅ Reduces cyclomatic complexity from 15 → ~6
-- ✅ More testable: can test `freeAll()` separately
-- ✅ More maintainable: change to all fields handled in one place
-- ✅ DRY: eliminates repeated nil-check patterns
+**Where:** Python wrapper
+**What:** Cleanup relies on `__del__`, which is non-deterministic and can be
+skipped at interpreter shutdown.
+**Why it matters:** Long-running processes that create many instances can
+accumulate native handles longer than intended.
+**Fix:** Add `close()` and `__enter__/__exit__` so users can
+`with Kagome() as kagome:` for deterministic cleanup.
 
 ---
 
-### 2. Variable Naming (varnamelen)
+## Notes on Tests
 
-**Issue:** Short variable names in long scopes make code harder to scan
+- Go tests exercise concurrency, overflow checks, and nil-safety
+- Python tests validate API semantics and unicode handling
+- No tests were run during this review
+- Makefile runs Python tests with `PYTHONPATH=./src` and
+   `python3 ./tests/libkagome_test.py`
 
-**Locations:**
+## How to Run Tests
 
-- `main_test.go:486` - `wg` (WaitGroup) used in 15+ lines
-- `main_test.go:568` - `wg` (WaitGroup) used in 15+ lines
-- `main_test.go:603` - `wg` (WaitGroup) used in 15+ lines
-- `main_test.go:658` - `i` loop variable used in 5+ line body
-- `helpers.go:127` - `i` loop variable used in 5 line body
-
-**Current:**
-
-```go
-var (
-    wg           sync.WaitGroup
-    successCount atomic.Int32
-)
-
-for range numGoroutines {
-    wg.Add(1)
-    go func() {
-        defer wg.Done()
-        // ... 10 lines of logic
-    }()
-}
-
-wg.Wait()
-```
-
-**Recommended:**
-
-```go
-var (
-    goroutineGroup sync.WaitGroup
-    successCount   atomic.Int32
-)
-
-for range numGoroutines {
-    goroutineGroup.Add(1)
-    go func() {
-        defer goroutineGroup.Done()
-        // ... easier to track what's happening
-    }()
-}
-
-goroutineGroup.Wait()
-```
-
-**For loop indices in bodies > 2 lines:**
-
-```go
-// Before
-for i := 0; i < count; i++ {
-    if token.surface != nil { C.free(...) }
-    token.surface = C.CString("surface")
-}
-
-// After
-for iteration := 0; iteration < count; iteration++ {
-    if token.surface != nil { C.free(...) }
-    token.surface = C.CString("surface")
-}
-```
+- All tests: `make test`
+- Go tests only: `make test-go`
+- Python tests only: `make test-python`
 
 ---
 
-### 3. Test Parallelization (paralleltest)
+## Suggested Next Steps
 
-**Issue:** Many test functions don't call `t.Parallel()` but linter expects them to
-
-**Context:** Tests modify global `instances` map, so parallelization causes race conditions
-
-**Current State:**
-
-```go
-// ✅ Correct - parallel tests that don't touch global state
-func TestWouldOverflowTokenAllocation(t *testing.T) {
-    t.Parallel()  // Safe
-    // ...
-}
-
-// ❌ Flagged - but MUST NOT be parallel
-func TestKagomeInit(t *testing.T) {
-    handle := KagomeInit()  // Modifies global instances map
-    // ...
-}
-```
-
-**Solution:** Suppress warnings with explicit linter directive
-
-**File:** `.golangci.yml`
-
-```yaml
-linters-settings:
-  paralleltest:
-    # Ignore tests that intentionally modify shared state
-    # These tests must run serially to prevent race conditions
-    ignore-missing:
-      - TestKagomeInit
-      - TestKagomeDestroy
-      - TestG1_.*
-      - TestG2_.*
-      - TestG3_.*
-      - TestG4_.*
-      - TestG5_.*
-      # Note: Tests that modify global instances map must not be parallelized
-```
-
-**OR** Add linter suppression in code:
-
-```go
-// TestKagomeInit tests tokenizer initialization.
-// Note: Cannot use t.Parallel() - modifies global instances map.
-//
-//nolint:paralleltest // Intentional: test modifies shared global state
-func TestKagomeInit(t *testing.T) {
-    handle := KagomeInit()
-    // ...
-}
-```
-
-**Recommendation:** Use the code-level suppression (already mostly done) as it's more explicit about intent.
-
----
-
-### 4. Return Line Spacing (nlreturn)
-
-**Issue:** Missing blank line before return statement in one-function chains
-
-**File:** `internal/cgotest/helpers.go`
-
-**Current:**
-
-```go
-// Line 48-50 (helpers.go)
-func TokenizeString(handle unsafe.Pointer, text string) int {
-    cStr := C.CString(text)
-    defer C.free(unsafe.Pointer(cStr))  // <-- no blank line
-    return 0  // or processing continues
-}
-
-// Line 72-74
-func HandleExists(handle unsafe.Pointer) bool {
-    defer C.free(unsafe.Pointer(cStr))
-    arr := C.KagomeTokenizeStruct(handle, cStr)  // <-- no blank line
-    if arr == nil {
-        return false
-    }
-}
-```
-
-**Fix:** Add blank line before return
-
-```go
-func TokenizeString(handle unsafe.Pointer, text string) int {
-    cStr := C.CString(text)
-    defer C.free(unsafe.Pointer(cStr))
-
-    arr := C.KagomeTokenizeStruct(handle, cStr)
-    if arr == nil {
-        return 0
-    }
-
-    count := int(arr.length)
-    C.KagomeFreeTokenArray(arr)
-
-    return count
-}
-```
+1. Adjust the test helper or add a direct empty-string FFI test
+2. Add an explicit lifecycle API (`close()` + context manager) in Python
+3. Run Go + Python tests to confirm behavior and document current coverage
 
 ---
 
@@ -477,7 +154,8 @@ for range count {
 
 2. **Extract token string marshaling**
    - Currently spread across `allocateTokenStrings()` and `checkAndStoreToken()`
-   - Create explicit conversion function: `marshallToken(*tokenizer.Token) (C.Token, error)`
+   - Create explicit conversion function:
+     `marshallToken(*tokenizer.Token) (C.Token, error)`
    - More testable, easier to modify for future token fields
 
 ### Larger Enhancements (future versions)
@@ -575,7 +253,8 @@ $ golangci-lint run
 main.go:257: Function 'KagomeTokenizeStruct' is too long (73 > 60) (funlen)
 ```
 
-**Fix**: Extract error cleanup path into separate helper function (see recommendations below)
+**Fix**: Extract error cleanup path into separate helper function (see
+recommendations below)
 
 ---
 
@@ -648,7 +327,7 @@ main.go:257: Function 'KagomeTokenizeStruct' is too long (73 > 60) (funlen)
 | **Error Handling** | ✅ Good | Helpful error messages |
 | **Memory Safety** | ✅ Excellent | Proper cleanup in finally block |
 | **API Design** | ✅ Intuitive | tokenize() and wakati() are clear |
-| **Token Class** | ✅ Complete | __eq__, __repr__, __str__ all present |
+| **Token Class** | ✅ Complete | **eq**, **repr**, **str** all present |
 | **Test Coverage** | ✅ Comprehensive | 31 tests, 100% pass rate |
 
 **No issues identified.** Python code is production-ready.
@@ -699,4 +378,5 @@ The codebase is **production-ready with excellent foundations**.
 - **Maintainability**: 8/10 - Good structure, minor cleanup needed
 - **Contribution-friendliness**: 8.5/10 - Linting mostly resolved
 
-**Bottom Line**: This is production-quality code. The remaining work is polish, not correctness.
+**Bottom Line**: This is production-quality code. The remaining work is polish,
+not correctness.

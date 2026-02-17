@@ -1,13 +1,16 @@
 # Go FFI Bridge Layer
 
-This directory contains the **Go-to-C FFI bridge** that exposes Kagome's tokenizer to other languages via C.
+This directory contains the **Go-to-C FFI bridge** that exposes Kagome's
+tokenizer to other languages via C.
 
 ## What is this?
 
-This layer provides wrapper functions that return C-compatible data structures and memory management functions.
+This layer provides wrapper functions that return C-compatible data structures
+and memory management functions.
 
 - **main.go** — Go implementation that exports C-compatible functions for FFI
-- **main_test.go** — Comprehensive tests including concurrency and memory safety checks
+- **main_test.go** — Comprehensive tests including concurrency and memory
+    safety checks
 
 ## Architecture
 
@@ -31,7 +34,8 @@ This layer sits between the C wrapper and the Kagome library, handling:
 
 ## Why is this needed?
 
-Go's cgo system can export functions to C, but the exported interface is not always clean:
+Go's cgo system can export functions to C, but the exported interface is not
+always clean:
 
 - Go exports many internal symbols (runtime, helpers, etc.)
 - Go pointers cannot be passed to C (cgo rule)
@@ -53,7 +57,8 @@ This layer solves these issues by:
 
 **Tokenization:**
 
-- `KagomeTokenizeStruct(handle, input)` — Tokenize text, returns C-allocated token array
+- `KagomeTokenizeStruct(handle, input)` — Tokenize text, returns C-allocated
+    token array
 - `KagomeFreeTokenArray(arr)` — Free tokenization results
 
 **Testing Utilities:**
@@ -71,13 +76,15 @@ All memory returned to C is allocated with `C.malloc` (not Go's allocator):
 - String fields in tokens
 - The TokenArray container itself
 
-This ensures FFI callers can safely hold pointers without triggering Go's garbage collector.
+This ensures FFI callers can safely hold pointers without triggering Go's
+garbage collector.
 
 ### Thread Safety
 
 - Uses `sync.Mutex` to protect the tokenizer instance map
 - Lock is acquired **only** for map access, not during tokenization
-- Allows concurrent tokenization across different handles (performance optimization)
+- Allows concurrent tokenization across different handles (performance
+    optimization)
 
 ### Error Handling
 

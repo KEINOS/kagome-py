@@ -74,9 +74,11 @@ make sdist           # Creates dist/kagome_py-*.tar.gz
 
 1. Configure GitHub → PyPI trusted publisher (OIDC):
    - Go to [pypi.org](https://pypi.org) → Project settings → Publishing
-   - Add trusted publisher: GitHub repo `KEINOS/kagome-py`, workflow `publish.yml`, environment `pypi`
+     - Add trusted publisher: GitHub repo `KEINOS/kagome-py`,
+         workflow `publish.yml`, environment `pypi`
 
-2. Update version in `pyproject.toml` and `src/libkagome/__init__.py` to match `_src_c/go/go.mod` (kagome version)
+2. Update version in `pyproject.toml` and `src/libkagome/__init__.py`
+    to match `_src_c/go/go.mod` (kagome version)
 
 **Release**:
 
@@ -176,7 +178,7 @@ python3 tests/libkagome_test.py
 
 **"Go not found"** → Source install (sdist) but Go not installed
 
-- Install Go: https://golang.org/doc/install
+- Install Go: <https://golang.org/doc/install>
 - Retry: `pip install --no-binary :all: kagome-py`
 
 **Tests fail with strange errors** → Using wrong import path

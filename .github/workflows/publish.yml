@@ -5,6 +5,13 @@ on:
     types: [published]
   workflow_dispatch:
 
+env:
+  GO_VERSION: "1.25.7"
+  PYTHON_VERSION: "3.12"
+  BUILD_TOOLS: "setuptools wheel build"
+  SDIST_BUILD_TOOLS: "build"
+  WHEEL_TAG_TOOL: "wheel"
+
 # Needed for trusted publishing (OIDC)
 permissions:
   id-token: write
@@ -58,15 +65,15 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.25.7
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install Python build tools
-        run: pip install setuptools wheel build
+        run: pip install ${{ env.BUILD_TOOLS }}
 
       - name: Build Go c-archive
         working-directory: _src_c/go
@@ -121,7 +128,7 @@ jobs:
       - name: Re-tag wheel with correct platform
         shell: bash
         run: |
-          pip install wheel
+          pip install ${{ env.WHEEL_TAG_TOOL }}
           WHL_FILE=$(ls dist/*.whl 2>/dev/null | head -1)
           if [ -z "$WHL_FILE" ]; then
             echo "ERROR: No .whl file found in dist/"
@@ -146,10 +153,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install Python build tools
-        run: pip install build
+        run: pip install ${{ env.SDIST_BUILD_TOOLS }}
 
       - name: Build sdist
         run: python3 -m build --sdist --outdir ./dist/
