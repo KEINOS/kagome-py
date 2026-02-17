@@ -1,0 +1,27 @@
+volumes:
+  kagome-build:
+
+services:
+  build-kagome:
+    build:
+      context: .
+    volumes:
+      - kagome-build:/app/_src_c/build
+      - ./Makefile:/app/Makefile:ro
+      - ./_src_c/go:/app/_src_c/go:ro
+      - ./_src_c/c:/app/_src_c/c:ro
+      - ./src/libkagome:/app/src/libkagome
+    working_dir: /app
+    entrypoint: ["make", "build"]
+
+  test-python:
+    image: python:latest
+    volumes:
+      - ./Makefile:/app/Makefile:ro
+      - ./src/libkagome:/app/src/libkagome:ro
+      - ./tests:/app/tests:ro
+    working_dir: /app
+    entrypoint: ["make", "test-python"]
+    depends_on:
+      build-kagome:
+        condition: service_completed_successfully

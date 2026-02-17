@@ -1,0 +1,187 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.25.7"
+  PYTHON_VERSION: "3.12"
+  BUILD_TOOLS: "setuptools wheel build"
+  SDIST_BUILD_TOOLS: "build"
+  WHEEL_TAG_TOOL: "wheel"
+
+# Needed for trusted publishing (OIDC)
+permissions:
+  id-token: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # macOS arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            lib_ext: dylib
+            wheel_plat: macosx_11_0_arm64
+
+          # macOS x86_64
+          - os: macos-15-intel
+            goos: darwin
+            goarch: amd64
+            lib_ext: dylib
+            wheel_plat: macosx_10_13_x86_64
+
+          # Linux x86_64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            lib_ext: so
+            wheel_plat: manylinux_2_35_x86_64
+
+          # Linux arm64
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            lib_ext: so
+            wheel_plat: manylinux_2_35_aarch64
+
+          # Windows x86_64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            lib_ext: dll
+            wheel_plat: win_amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python build tools
+        run: pip install ${{ env.BUILD_TOOLS }}
+
+      - name: Build Go c-archive
+        working-directory: _src_c/go
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        shell: bash
+        run: |
+          mkdir -p ../build
+          go test -v ./...
+          go build -buildmode=c-archive -o ../build/libkagome.a ./main.go
+          echo "=== Build output ==="
+          ls -la ../build/
+
+      - name: Build shared library
+        working-directory: _src_c
+        shell: bash
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            gcc -fPIC -fvisibility=hidden -shared \
+              ./c/kagome_wrapper.c ./build/libkagome.a \
+              -o ./build/libkagome.${{ matrix.lib_ext }} \
+              -lwinmm -lws2_32 -lntdll
+          else
+            cc -fPIC -fvisibility=hidden -shared \
+              ./c/kagome_wrapper.c ./build/libkagome.a \
+              -o ./build/libkagome.${{ matrix.lib_ext }}
+          fi
+
+      - name: Stage library into package
+        shell: bash
+        run: |
+          mkdir -p src/libkagome/lib
+          if [ -d "_src_c/build" ]; then
+            ls -la _src_c/build/
+            cp "_src_c/build/libkagome.${{ matrix.lib_ext }}" \
+               "src/libkagome/lib/libkagome.${{ matrix.lib_ext }}"
+            ls -la src/libkagome/lib/
+          else
+            echo "ERROR: _src_c/build/ directory not found"
+            exit 1
+          fi
+
+      - name: Build wheel
+        shell: bash
+        run: |
+          mkdir -p dist
+          python3 -m pip wheel . --no-deps --wheel-dir ./dist/
+          ls -la dist/ || echo "dist/ is empty"
+
+      - name: Re-tag wheel with correct platform
+        shell: bash
+        run: |
+          pip install ${{ env.WHEEL_TAG_TOOL }}
+          WHL_FILE=$(ls dist/*.whl 2>/dev/null | head -1)
+          if [ -z "$WHL_FILE" ]; then
+            echo "ERROR: No .whl file found in dist/"
+            ls -la dist/
+            exit 1
+          fi
+          python3 -m wheel tags --platform-tag ${{ matrix.wheel_plat }} "$WHL_FILE" --remove
+          ls -la dist/
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.whl
+
+  build-sdist:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python build tools
+        run: pip install ${{ env.SDIST_BUILD_TOOLS }}
+
+      - name: Build sdist
+        run: python3 -m build --sdist --outdir ./dist/
+
+      - name: Upload sdist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    needs: [build, build-sdist]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/kagome-py
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

@@ -1,0 +1,27 @@
+# Build artifacts
+_src_c/build/*
+!_src_c/build/.gitkeep
+
+# Shared libraries in package (built by CI/make, not committed)
+src/libkagome/lib/libkagome.*
+!src/libkagome/lib/.gitkeep
+
+# Go
+coverage.out
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+*.egg
+*.whl
+*.tar.gz
+build/
+dist/
+
+# OS
+.DS_Store
+
+# Agents
+.vscode
+.claude
